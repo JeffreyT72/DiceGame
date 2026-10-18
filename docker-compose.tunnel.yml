@@ -1,0 +1,17 @@
+services:
+  blackjack:
+    build: .
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+    volumes:
+      - ./data:/app/data
+    networks:
+      tunnel:
+        aliases:
+          - blackjack
+
+networks:
+  tunnel:
+    name: blackjack-tunnel

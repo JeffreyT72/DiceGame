@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#101a19" />
+    <title>Blackjack Battle</title>
+  </head>
+  <body>
+    <main class="game-card">
+      <header class="game-header">
+        <div>
+          <p class="eyebrow">A blackjack battle</p>
+          <h1>Blackjack Hero</h1>
+        </div>
+        <p class="rules">Win a hand to damage the monster.<br />Lose, and the dealer hits back.</p>
+      </header>
+
+      <section id="auth-panel" class="auth-panel" aria-labelledby="auth-title">
+        <p class="eyebrow">Player account</p>
+        <h2 id="auth-title">Sign in to play</h2>
+        <p class="auth-description">Your experience is saved to your account.</p>
+        <form id="auth-form">
+          <div id="login-fields">
+            <label for="auth-identifier">Username or email</label>
+            <input id="auth-identifier" name="identifier" type="text" autocomplete="username" maxlength="254" required />
+          </div>
+          <div id="signup-fields" hidden>
+            <label for="auth-username">Username</label>
+            <input id="auth-username" name="username" type="text" autocomplete="username" minlength="3" maxlength="24" pattern="[A-Za-z0-9_]+" />
+            <label for="auth-email">Email</label>
+            <input id="auth-email" name="email" type="email" autocomplete="email" maxlength="254" />
+          </div>
+          <label for="auth-password">Password</label>
+          <input id="auth-password" name="password" type="password" autocomplete="current-password" minlength="8" maxlength="128" required />
+          <p id="auth-error" class="auth-error" role="alert" aria-live="polite"></p>
+          <button id="auth-submit" class="button button-primary auth-submit" type="submit">Sign in</button>
+        </form>
+        <button id="auth-switch" class="auth-switch" type="button">Need an account? Sign up</button>
+      </section>
+
+      <section id="game-panel" hidden>
+        <div class="account-bar">
+          <span>Signed in as <strong id="account-name"></strong></span>
+          <button id="signout-button" class="button button-quiet" type="button">Sign out</button>
+        </div>
+        <section id="table" class="table" aria-label="Blackjack table">
+          <div id="game"></div>
+        </section>
+      <section class="progression" aria-label="Player progression">
+        <div class="progression-labels">
+          <strong id="player-level">Level 1</strong>
+          <span id="player-exp">0 / 100 EXP</span>
+        </div>
+        <div
+          id="experience-bar"
+          class="experience-bar"
+          role="progressbar"
+          aria-label="Experience toward next level"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-valuenow="0"
+          aria-valuetext="0 of 100 experience toward level 2"
+        >
+          <div id="experience-fill" class="experience-fill"></div>
+        </div>
+      </section>
+
+      <p id="status" class="status" role="status" aria-live="polite">Getting the cards ready…</p>
+
+      <div class="actions">
+        <button id="hit-button" class="button button-primary" type="button" disabled>Hit</button>
+        <button id="stand-button" class="button button-secondary" type="button" disabled>Stand</button>
+        <button id="new-game-button" class="button button-quiet" type="button">New game</button>
+      </div>
+      <p class="footnote">Both fighters start with 100 HP. Damage equals the winning hand’s points. Ties deal no damage. Defeating a monster grants 50 EXP; each level requires 100 more EXP than the previous level.</p>
+      </section>
+    </main>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
