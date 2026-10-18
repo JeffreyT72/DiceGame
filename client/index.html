@@ -66,6 +66,35 @@
         </div>
       </section>
 
+      <section class="character-stats" aria-label="Character stats">
+        <div class="stat-heading">
+          <h2>Character stats</h2>
+          <strong id="stat-points">Unspent stat points: 0</strong>
+        </div>
+        <div class="stat-grid">
+          <article class="stat-card">
+            <div><strong>Strength (STR)</strong><span id="stat-strength">0</span></div>
+            <p>+1 damage per point</p>
+            <button class="button button-secondary" type="button" data-stat="strength">Add point</button>
+          </article>
+          <article class="stat-card">
+            <div><strong>Agility (AGI)</strong><span id="stat-agility">0</span></div>
+            <p id="stat-agility-bonus">0% dodge</p>
+            <button class="button button-secondary" type="button" data-stat="agility">Add point</button>
+          </article>
+          <article class="stat-card">
+            <div><strong>Constitution (CON)</strong><span id="stat-constitution">0</span></div>
+            <p id="stat-constitution-bonus">+0 max HP</p>
+            <button class="button button-secondary" type="button" data-stat="constitution">Add point</button>
+          </article>
+          <article class="stat-card">
+            <div><strong>Luck</strong><span id="stat-luck">0</span></div>
+            <p id="stat-luck-bonus">0% critical</p>
+            <button class="button button-secondary" type="button" data-stat="luck">Add point</button>
+          </article>
+        </div>
+      </section>
+
       <p id="status" class="status" role="status" aria-live="polite">Getting the cards ready…</p>
 
       <div class="actions">
@@ -73,7 +102,7 @@
         <button id="stand-button" class="button button-secondary" type="button" disabled>Stand</button>
         <button id="new-game-button" class="button button-quiet" type="button">New game</button>
       </div>
-      <p class="footnote">Both fighters start with 100 HP. Damage equals the winning hand’s points. Ties deal no damage. Defeating a monster grants 50 EXP; each level requires 100 more EXP than the previous level.</p>
+      <p class="footnote">The hero starts with 100 HP and the monster with 100 HP. Strength adds damage, agility can dodge attacks, constitution adds max HP, and luck can land critical hits. Each level gained grants one stat point. Defeating a monster grants 50 EXP; each level requires 100 more EXP than the previous level.</p>
       </section>
     </main>
     <script type="module" src="/src/main.js"></script>

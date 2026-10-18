@@ -22,9 +22,11 @@ const authPassword = document.querySelector('#auth-password');
 const gamePanel = document.querySelector('#game-panel');
 const accountName = document.querySelector('#account-name');
 const signoutButton = document.querySelector('#signout-button');
+const statPoints = document.querySelector('#stat-points');
+const statButtons = [...document.querySelectorAll('[data-stat]')];
 
-const initialCombatState = () => ({
-  playerHp: 100,
+const initialCombatState = (playerHp = 100) => ({
+  playerHp,
   monsterHp: 100,
   playerLevel: 1,
   playerExp: 0,
@@ -37,9 +39,17 @@ const expRequiredForNextLevel = (level) => level * 100;
 let currentGame = null;
 let combatState = initialCombatState();
 let currentPlayer = null;
+let currentStats = {
+  strength: 0,
+  agility: 0,
+  constitution: 0,
+  luck: 0,
+  availableStatPoints: 0,
+};
 let authMode = 'login';
 let combatStorageKey = '';
 let gameStorageKey = '';
+let allocatingStat = false;
 const playerLevel = document.querySelector('#player-level');
 const playerExp = document.querySelector('#player-exp');
 const experienceBar = document.querySelector('#experience-bar');
@@ -59,16 +69,21 @@ function getTotalExp() {
   return levelsCompleted * (levelsCompleted + 1) / 2 * 100 + combatState.playerExp;
 }
 
-function loadCombatState(totalExp) {
+function maximumHealth() {
+  return 100 + currentStats.constitution * 20;
+}
+
+function loadCombatState(stats) {
+  currentStats = stats;
   const savedState = localStorage.getItem(combatStorageKey);
   if (!savedState) {
-    combatState = initialCombatState();
+    combatState = initialCombatState(maximumHealth());
   } else {
     const parsedState = JSON.parse(savedState);
     if (
       !Number.isInteger(parsedState.playerHp)
       || parsedState.playerHp < 0
-      || parsedState.playerHp > 100
+      || parsedState.playerHp > maximumHealth()
       || !Number.isInteger(parsedState.monsterHp)
       || parsedState.monsterHp < 0
       || parsedState.monsterHp > 100
@@ -87,7 +102,7 @@ function loadCombatState(totalExp) {
       pendingExpAwards: parsedState.pendingExpAwards ?? [],
     };
   }
-  applyTotalExp(totalExp);
+  applyTotalExp(stats.totalExp);
 }
 
 function saveCombatState() {
@@ -104,10 +119,15 @@ function resolveCombatRound(gameState) {
 
   let earnedExp = false;
   if (['player_blackjack', 'player_win', 'dealer_bust'].includes(gameState.outcome)) {
-    const damage = gameState.playerScore;
+    const baseDamage = gameState.playerScore + currentStats.strength;
+    const criticalChance = Math.min(100, currentStats.luck * 3);
+    const criticalHit = Math.random() * 100 < criticalChance;
+    const damage = criticalHit ? Math.floor(baseDamage * 1.5) : baseDamage;
     const monsterWasAlive = combatState.monsterHp > 0;
     combatState.monsterHp = Math.max(0, combatState.monsterHp - damage);
-    combatState.lastRoundMessage = `You deal ${damage} damage to the monster.`;
+    combatState.lastRoundMessage = criticalHit
+      ? `Critical hit! You deal ${damage} damage to the monster.`
+      : `You deal ${damage} damage to the monster.`;
     if (monsterWasAlive && combatState.monsterHp === 0) {
       combatState.playerExp += monsterDefeatExp;
       earnedExp = true;
@@ -125,8 +145,13 @@ function resolveCombatRound(gameState) {
     }
   } else if (['dealer_blackjack', 'player_bust', 'dealer_win'].includes(gameState.outcome)) {
     const damage = gameState.dealerScore;
-    combatState.playerHp = Math.max(0, combatState.playerHp - damage);
-    combatState.lastRoundMessage = `The dealer deals ${damage} damage to you.`;
+    const dodgeChance = Math.min(100, currentStats.agility * 5);
+    if (Math.random() * 100 < dodgeChance) {
+      combatState.lastRoundMessage = `You dodge the monster's ${damage}-damage attack.`;
+    } else {
+      combatState.playerHp = Math.max(0, combatState.playerHp - damage);
+      combatState.lastRoundMessage = `The monster deals ${damage} damage to you.`;
+    }
   } else {
     combatState.lastRoundMessage = 'No damage dealt.';
   }
@@ -172,11 +197,14 @@ function render(gameState) {
       status.textContent = `Could not save your experience: ${error.message}`;
     });
   }
-  game.scene.getScene('blackjack').renderGame(gameState, combatState);
+  game.scene.getScene('blackjack').renderGame(gameState, {
+    ...combatState,
+    playerMaxHp: maximumHealth(),
+  });
   renderProgression();
   table.setAttribute(
     'aria-label',
-    `Hero health ${combatState.playerHp} of 100. Monster health ${combatState.monsterHp} of 100. Dealer hand, ${gameState.dealerHand.length} cards. Your hand, ${gameState.playerHand.length} cards, score ${gameState.playerScore}.`,
+    `Hero health ${combatState.playerHp} of ${maximumHealth()}. Monster health ${combatState.monsterHp} of 100. Dealer hand, ${gameState.dealerHand.length} cards. Your hand, ${gameState.playerHand.length} cards, score ${gameState.playerScore}.`,
   );
   const battleOver = combatState.playerHp === 0 || combatState.monsterHp === 0;
   hitButton.disabled = gameState.status !== 'playing' || battleOver;
@@ -202,7 +230,7 @@ async function startGame() {
 
 async function loadGame() {
   const { stats } = await request('/api/player/stats');
-  loadCombatState(stats.totalExp);
+  loadCombatState(stats);
   const savedId = localStorage.getItem(gameStorageKey);
   if (!savedId) {
     await startGame();
@@ -232,6 +260,7 @@ async function syncProgression(gameId) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ gameId }),
   });
+  currentStats = stats;
   applyTotalExp(Math.max(getTotalExp(), stats.totalExp));
   combatState.pendingExpAwards = combatState.pendingExpAwards.filter((pendingGameId) => pendingGameId !== gameId);
   saveCombatState();
@@ -255,6 +284,46 @@ function renderProgression() {
     `${combatState.playerExp} of ${expRequired} experience toward level ${combatState.playerLevel + 1}`,
   );
   experienceFill.style.width = `${combatState.playerExp / expRequired * 100}%`;
+  statPoints.textContent = `Unspent stat points: ${currentStats.availableStatPoints}`;
+  for (const button of statButtons) {
+    button.disabled = allocatingStat || currentStats.availableStatPoints < 1;
+  }
+  document.querySelector('#stat-strength').textContent = currentStats.strength;
+  document.querySelector('#stat-agility').textContent = currentStats.agility;
+  document.querySelector('#stat-constitution').textContent = currentStats.constitution;
+  document.querySelector('#stat-luck').textContent = currentStats.luck;
+  document.querySelector('#stat-agility-bonus').textContent = `${Math.min(100, currentStats.agility * 5)}% dodge`;
+  document.querySelector('#stat-constitution-bonus').textContent = `+${currentStats.constitution * 20} max HP`;
+  document.querySelector('#stat-luck-bonus').textContent = `${Math.min(100, currentStats.luck * 3)}% critical (1.5x)`;
+}
+
+async function allocateStat(stat) {
+  allocatingStat = true;
+  renderProgression();
+  try {
+    const { stats } = await request('/api/player/stats/allocate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stat }),
+    });
+    currentStats = stats;
+    applyTotalExp(stats.totalExp);
+    if (stat === 'constitution') {
+      combatState.playerHp = Math.min(maximumHealth(), combatState.playerHp + 20);
+      saveCombatState();
+    }
+    renderProgression();
+    if (currentGame) {
+      render(currentGame);
+    }
+    status.textContent = `${stat.toUpperCase()} increased.`;
+  } catch (error) {
+    console.error(error);
+    status.textContent = `Could not allocate your stat point: ${error.message}`;
+  } finally {
+    allocatingStat = false;
+    renderProgression();
+  }
 }
 
 function showAuth(mode = 'login') {
@@ -317,7 +386,7 @@ newGameButton.addEventListener('click', async () => {
     if (combatState.playerHp === 0 || combatState.monsterHp === 0) {
       combatState = {
         ...combatState,
-        playerHp: 100,
+        playerHp: maximumHealth(),
         monsterHp: 100,
         lastResolvedGameId: null,
         lastRoundMessage: '',
@@ -332,6 +401,10 @@ newGameButton.addEventListener('click', async () => {
     newGameButton.disabled = false;
   }
 });
+
+for (const button of statButtons) {
+  button.addEventListener('click', () => allocateStat(button.dataset.stat));
+}
 
 authSwitch.addEventListener('click', () => {
   showAuth(authMode === 'login' ? 'signup' : 'login');

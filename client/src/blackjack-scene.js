@@ -109,14 +109,14 @@ class BlackjackScene extends Phaser.Scene {
 
     this.healthLayer.removeAll(true);
     this.handLayer.removeAll(true);
-    this.addHealthBar('Hero', combatState.playerHp, 42, 88, 0x91c977);
-    this.addHealthBar('Monster', combatState.monsterHp, 596, 88, 0xd46d5e);
+    this.addHealthBar('Hero', combatState.playerHp, combatState.playerMaxHp ?? 100, 42, 88, 0x91c977);
+    this.addHealthBar('Monster', combatState.monsterHp, 100, 596, 88, 0xd46d5e);
     this.addHand('Dealer', game.dealerHand, game.dealerScore, 298, 262);
     this.addHand('You', game.playerHand, game.playerScore, 394, 358);
   }
 
-  addHealthBar(label, hp, x, y, color) {
-    this.healthLayer.add(this.add.text(x, y - 20, `${label}  ${hp} / 100 HP`, {
+  addHealthBar(label, hp, maxHp, x, y, color) {
+    this.healthLayer.add(this.add.text(x, y - 20, `${label}  ${hp} / ${maxHp} HP`, {
       color: '#e9f5ed',
       fontFamily: 'Arial, sans-serif',
       fontSize: '14px',
@@ -125,7 +125,7 @@ class BlackjackScene extends Phaser.Scene {
     this.healthLayer.add(this.add.rectangle(x + 110, y, 220, 16, 0x14221c)
       .setStrokeStyle(1, 0xb3c8b8));
     if (hp > 0) {
-      const width = 216 * hp / 100;
+      const width = 216 * hp / maxHp;
       this.healthLayer.add(this.add.rectangle(x + 3 + width / 2, y, width, 10, color));
     }
   }

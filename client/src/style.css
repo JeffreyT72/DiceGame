@@ -122,6 +122,72 @@ h1 {
   transition: width 180ms ease;
 }
 
+.character-stats {
+  margin: 24px 0;
+}
+
+.stat-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.stat-heading h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.stat-heading > strong {
+  color: #b4d282;
+  font-size: 0.9rem;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.stat-card {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid #35473e;
+  border-radius: 12px;
+  background: #131e1a;
+}
+
+.stat-card > div {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.stat-card > div strong {
+  font-size: 0.88rem;
+}
+
+.stat-card > div span {
+  color: #b4d282;
+  font-weight: 750;
+}
+
+.stat-card p {
+  min-height: 1.2em;
+  margin: 9px 0 12px;
+  color: #aebbb3;
+  font-size: 0.82rem;
+}
+
+.stat-card .button {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 8px;
+  font-size: 0.85rem;
+}
+
 .actions {
   display: grid;
   grid-template-columns: 1fr 1fr 1.25fr;
@@ -282,6 +348,10 @@ h1 {
 
   .actions {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .button-quiet {

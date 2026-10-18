@@ -47,6 +47,10 @@ playerDatabase.exec(`
   CREATE TABLE IF NOT EXISTS player_stats (
     user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     total_exp INTEGER NOT NULL DEFAULT 0 CHECK (total_exp >= 0),
+    strength INTEGER NOT NULL DEFAULT 0 CHECK (strength >= 0),
+    agility INTEGER NOT NULL DEFAULT 0 CHECK (agility >= 0),
+    constitution INTEGER NOT NULL DEFAULT 0 CHECK (constitution >= 0),
+    luck INTEGER NOT NULL DEFAULT 0 CHECK (luck >= 0),
     games_played INTEGER NOT NULL DEFAULT 0 CHECK (games_played >= 0),
     wins INTEGER NOT NULL DEFAULT 0 CHECK (wins >= 0),
     losses INTEGER NOT NULL DEFAULT 0 CHECK (losses >= 0),
@@ -71,6 +75,14 @@ playerDatabase.exec(`
 
   CREATE INDEX IF NOT EXISTS player_sessions_expiry_idx ON player_sessions(expires_at);
 `);
+const existingPlayerStatColumns = new Set(
+  playerDatabase.prepare('PRAGMA table_info(player_stats)').all().map(({ name }) => name),
+);
+for (const column of ['strength', 'agility', 'constitution', 'luck']) {
+  if (!existingPlayerStatColumns.has(column)) {
+    playerDatabase.exec(`ALTER TABLE player_stats ADD COLUMN ${column} INTEGER NOT NULL DEFAULT 0 CHECK (${column} >= 0)`);
+  }
+}
 playerDatabase.pragma('foreign_keys = ON');
 playerDatabase.prepare('DELETE FROM player_sessions WHERE expires_at <= ?')
   .run(new Date().toISOString());
@@ -100,6 +112,7 @@ function getSessionToken(request) {
 function publicAccount(userId) {
   const account = playerDatabase.prepare(`
     SELECT users.id, users.username, users.email, player_stats.total_exp AS totalExp,
+      player_stats.strength, player_stats.agility, player_stats.constitution, player_stats.luck,
       player_stats.games_played AS gamesPlayed, player_stats.wins,
       player_stats.losses, player_stats.pushes,
       player_stats.monsters_defeated AS monstersDefeated
@@ -112,7 +125,12 @@ function publicAccount(userId) {
   }
 
   const { id, username, email, ...stats } = account;
-  return { user: { id, username, email }, stats };
+  const allocatedPoints = stats.strength + stats.agility + stats.constitution + stats.luck;
+  const level = getLevel(stats.totalExp);
+  return {
+    user: { id, username, email },
+    stats: { ...stats, level, availableStatPoints: Math.max(0, level - 1 - allocatedPoints) },
+  };
 }
 
 function setSessionCookie(response, token) {
@@ -232,6 +250,48 @@ app.get('/api/player/stats', requirePlayer, (request, response) => {
   response.json({ stats: playerStats(request.playerId) });
 });
 
+const statColumns = {
+  strength: 'strength',
+  agility: 'agility',
+  constitution: 'constitution',
+  luck: 'luck',
+};
+
+app.post('/api/player/stats/allocate', requirePlayer, (request, response) => {
+  const { stat } = request.body ?? {};
+  if (typeof stat !== 'string' || !Object.hasOwn(statColumns, stat)) {
+    return response.status(400).json({ error: 'Choose a valid character stat to increase.' });
+  }
+
+  const allocateStat = playerDatabase.transaction(() => {
+    const currentStats = playerDatabase.prepare(`
+      SELECT total_exp AS totalExp, strength, agility, constitution, luck
+      FROM player_stats WHERE user_id = ?
+    `).get(request.playerId);
+    if (!currentStats) {
+      return { error: 'Player stats could not be found.', status: 404 };
+    }
+
+    const allocatedPoints = currentStats.strength + currentStats.agility
+      + currentStats.constitution + currentStats.luck;
+    if (getLevel(currentStats.totalExp) - 1 <= allocatedPoints) {
+      return { error: 'No stat points are available. Earn a level to get another point.', status: 409 };
+    }
+
+    playerDatabase.prepare(`
+      UPDATE player_stats
+      SET ${statColumns[stat]} = ${statColumns[stat]} + 1, updated_at = datetime('now')
+      WHERE user_id = ?
+    `).run(request.playerId);
+    return { stats: playerStats(request.playerId) };
+  });
+  const result = allocateStat();
+  if (result.error) {
+    return response.status(result.status).json({ error: result.error });
+  }
+  response.json(result);
+});
+
 app.post('/api/player/progression', requirePlayer, (request, response) => {
   const { gameId } = request.body ?? {};
   if (typeof gameId !== 'string' || !gameId || gameId.length > 128) {
@@ -270,11 +330,27 @@ app.post('/api/player/progression', requirePlayer, (request, response) => {
 });
 
 function playerStats(userId) {
-  return playerDatabase.prepare(`
+  const stats = playerDatabase.prepare(`
     SELECT total_exp AS totalExp, games_played AS gamesPlayed, wins, losses, pushes,
-      monsters_defeated AS monstersDefeated
+      monsters_defeated AS monstersDefeated, strength, agility, constitution, luck
     FROM player_stats WHERE user_id = ?
   `).get(userId);
+  if (!stats) {
+    return null;
+  }
+  const allocatedPoints = stats.strength + stats.agility + stats.constitution + stats.luck;
+  const level = getLevel(stats.totalExp);
+  return { ...stats, level, availableStatPoints: Math.max(0, level - 1 - allocatedPoints) };
+}
+
+function getLevel(totalExp) {
+  let level = 1;
+  let remainingExp = totalExp;
+  while (remainingExp >= level * 100) {
+    remainingExp -= level * 100;
+    level += 1;
+  }
+  return level;
 }
 
 function findGame(id) {

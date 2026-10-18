@@ -43,9 +43,9 @@ Set the tunnel's published application service URL to `http://blackjack:3000`. T
 - A two-card 21 is blackjack. A simultaneous dealer blackjack is a push.
 - Splitting and doubling down are not included in this starter.
 
-Create an account or sign in before playing. The hero and monster each start with 100 HP. Winning a hand deals the player's final hand score as damage to the monster; losing deals the dealer's final hand score to the player. A push deals no damage. Combat HP persists in the browser between hands and page refreshes. Starting a new hand does not restore HP; after either fighter is defeated, starting a new game resets both fighters to 100 HP.
+Create an account or sign in before playing. The hero starts with 100 HP and the monster starts with 100 HP. Winning a hand deals the player's final hand score plus STR as damage to the monster; Luck can increase that to 1.5x on a critical hit. Losing deals the dealer's final hand score to the player, with AGI providing a chance to dodge. A push deals no damage. Combat HP persists in the browser between hands and page refreshes. CON increases maximum HP by 20 per point and also adds 20 current HP when allocated. Starting a new hand does not restore HP; after either fighter is defeated, starting a new game restores the hero to their maximum HP and the monster to 100 HP.
 
-Defeating a monster grants 50 EXP. The server awards it once per completed winning game and saves total EXP to the player's account in SQLite. Level progress is calculated from the database total after sign-in; browser storage only keeps battle health and retries for awards that could not be saved.
+Defeating a monster grants 50 EXP. The server awards it once per completed winning game and saves total EXP to the player's account in SQLite. Every level gained grants one stat point to allocate to STR (+1 damage), AGI (+5% dodge chance), CON (+20 maximum HP), or Luck (+3% critical chance for 1.5x damage). Level progress and allocated stats are loaded from the account database after sign-in; browser storage only keeps battle health and retries for awards that could not be saved.
 
 Games are stored in `data/blackjack.sqlite` and the current game is restored after refreshing the page. Player accounts, password hashes, sessions, and progression are stored separately in `data/player-accounts.sqlite`. Both databases are created automatically. Set `DATABASE_PATH` or `PLAYER_DATABASE_PATH` to use other SQLite files, or `PORT` to change the server port. Passwords are hashed with Node's scrypt; login sessions use expiring, HttpOnly cookies.
 
@@ -59,6 +59,7 @@ Games are stored in `data/blackjack.sqlite` and the current game is restored aft
 - `GET /api/auth/me` returns the signed-in account and player stats.
 - `POST /api/auth/logout` ends the current session.
 - `GET /api/player/stats` returns the signed-in player's stats.
+- `POST /api/player/stats/allocate` accepts `{ "stat": "strength" }`, `"agility"`, `"constitution"`, or `"luck"` and spends one available stat point.
 - `POST /api/player/progression` awards 50 EXP for a completed winning game, once per game and signed-in player.
 
 The player stats table also includes counters for games played, wins, losses, pushes, and monsters defeated, ready for future stat tracking.
