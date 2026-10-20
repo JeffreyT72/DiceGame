@@ -37,9 +37,9 @@ export const itemDefinitions = [
   {
     id: 'iron-necklace',
     name: 'Iron Necklace',
-    description: 'Restore 20% of maximum HP on a successful hit.',
-    chance: 1,
-    effects: { healOnHit: 0.2 },
+    description: 'Restore 10% of maximum HP on a successful hit.',
+    chance: 0.7,
+    effects: { healOnHit: 0.1 },
   },
 ];
 

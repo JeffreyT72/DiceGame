@@ -11,6 +11,7 @@ RUN npm ci
 
 COPY client ./client
 COPY server ./server
+COPY shared ./shared
 COPY vite.config.js ./
 RUN npm run build && npm prune --omit=dev
 
@@ -22,6 +23,7 @@ ENV PORT=3000
 
 COPY package.json package-lock.json ./
 COPY server ./server
+COPY shared ./shared
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/node_modules ./node_modules
 

@@ -31,6 +31,7 @@ let runState = null;
 let runStorageKey = '';
 let gameStorageKey = '';
 let resolvingStage = false;
+let startingHand = false;
 let dungeonLoadPromise = null;
 let renderProgression;
 
@@ -217,15 +218,19 @@ function renderControls() {
   const active = runState?.phase === 'active';
   const handInProgress = currentGame?.status === 'playing';
   const stageComplete = runState?.phase === 'loot';
-  hitButton.disabled = !active || !handInProgress;
-  standButton.disabled = !active || !handInProgress;
-  newGameButton.disabled = resolvingStage
+  hitButton.disabled = startingHand || !active || !handInProgress;
+  standButton.disabled = startingHand || !active || !handInProgress;
+  newGameButton.disabled = startingHand || resolvingStage
     || (runState?.phase === 'clearing' ? false : !active || handInProgress);
   suggestedLevel.textContent = `Level ${runState?.suggestedLevel ?? suggestedCharacterLevel()}`;
   lootPanel.hidden = !stageComplete;
   renderItemInventory();
   renderLootChoices();
-  newGameButton.textContent = runState?.phase === 'clearing' ? 'Retry stage clear' : 'Next hand';
+  newGameButton.textContent = startingHand
+    ? 'Starting hand…'
+    : runState?.phase === 'clearing'
+      ? 'Retry stage clear'
+      : 'Next hand';
 
   if (!runState) {
     dungeonProgress.textContent = 'Your next run is ready when you are.';
@@ -280,10 +285,29 @@ function renderLootChoices() {
   }
 }
 
+function clearCurrentHand() {
+  currentGame = null;
+  if (gameStorageKey) {
+    localStorage.removeItem(gameStorageKey);
+  }
+  game?.scene.getScene('blackjack').clearHand();
+}
+
 async function startHand() {
-  const { game: newGame } = await request('/api/games', { method: 'POST' });
-  localStorage.setItem(gameStorageKey, newGame.id);
-  render(newGame);
+  if (startingHand) {
+    return;
+  }
+  startingHand = true;
+  clearCurrentHand();
+  renderControls();
+  try {
+    const { game: newGame } = await request('/api/games', { method: 'POST' });
+    localStorage.setItem(gameStorageKey, newGame.id);
+    render(newGame);
+  } finally {
+    startingHand = false;
+    renderControls();
+  }
 }
 
 async function syncStageClear() {
@@ -324,6 +348,8 @@ async function syncStageClear() {
 }
 
 async function beginDungeon() {
+  clearCurrentHand();
+  renderControls();
   try {
     const { dungeon } = await request('/api/dungeons', {
       method: 'POST',
@@ -483,9 +509,10 @@ async function startGame() {
     await dungeonLoadPromise;
     screens.show('dungeon');
     game ??= createBlackjackGame('game');
-    if (currentGame) render(currentGame);
     if (!runState || ['failed', 'complete'].includes(runState.phase)) {
       await beginDungeon();
+    } else if (currentGame) {
+      render(currentGame);
     } else if (runState.phase === 'active' && !currentGame) {
       await startHand();
     }

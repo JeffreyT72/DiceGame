@@ -224,6 +224,12 @@ class BlackjackScene extends Phaser.Scene {
     this.addHand('You', game.playerHand, game.playerScore, 394, 358);
   }
 
+  clearHand() {
+    if (this.handLayer) {
+      this.handLayer.removeAll(true);
+    }
+  }
+
   addHealthBar(label, hp, maxHp, x, y, color) {
     this.healthLayer.add(this.add.text(x, y - 20, `${label}  ${hp} / ${maxHp} HP`, {
       color: '#e9f5ed',
