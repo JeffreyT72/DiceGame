@@ -1,4 +1,6 @@
 import Phaser from 'phaser';
+import characterSpriteSheet from './assets/characters/main.png';
+import { dungeonStageCount } from '../../shared/dungeon-config.js';
 
 const suitSymbols = {
   clubs: '♣',
@@ -6,6 +8,10 @@ const suitSymbols = {
   hearts: '♥',
   spades: '♠',
 };
+const heroIdleFrames = [20, 120, 220, 320];
+const heroFrameWidth = 90;
+const heroFrameHeight = 170;
+const heroFrameTop = 85;
 
 class BlackjackScene extends Phaser.Scene {
   constructor() {
@@ -14,14 +20,124 @@ class BlackjackScene extends Phaser.Scene {
     this.combatState = { playerHp: 100, monsterHp: 100 };
   }
 
+  preload() {
+    this.load.image('hero-sprite-sheet', characterSpriteSheet);
+  }
+
   create() {
+    this.createHeroIdleTexture();
     this.drawBattlefield();
     this.healthLayer = this.add.container(0, 0);
     this.handLayer = this.add.container(0, 0);
+    this.stageText = this.add.text(430, 245, 'DUNGEON · STAGE 1 / 10', {
+      color: '#b4d282',
+      fontFamily: 'Arial, sans-serif',
+      fontSize: '15px',
+      fontStyle: 'bold',
+    }).setOrigin(0.5);
     if (this.pendingGame) {
       this.renderGame(this.pendingGame, this.combatState);
       this.pendingGame = null;
     }
+  }
+
+  createHeroIdleTexture() {
+    const sheet = this.textures.get('hero-sprite-sheet').getSourceImage();
+    const canvas = document.createElement('canvas');
+    canvas.width = heroFrameWidth * heroIdleFrames.length;
+    canvas.height = heroFrameHeight;
+    const context = canvas.getContext('2d');
+
+    heroIdleFrames.forEach((frameX, frameIndex) => {
+      context.drawImage(
+        sheet,
+        frameX,
+        heroFrameTop,
+        heroFrameWidth,
+        heroFrameHeight,
+        frameIndex * heroFrameWidth,
+        0,
+        heroFrameWidth,
+        heroFrameHeight,
+      );
+      this.removeSpriteSheetBackground(
+        context,
+        frameIndex * heroFrameWidth,
+        0,
+      );
+    });
+
+    const texture = this.textures.addCanvas('hero-idle', canvas);
+    heroIdleFrames.forEach((_, frameIndex) => {
+      texture.add(
+        `idle-${frameIndex}`,
+        0,
+        frameIndex * heroFrameWidth,
+        0,
+        heroFrameWidth,
+        heroFrameHeight,
+      );
+    });
+    this.anims.create({
+      key: 'hero-idle',
+      frames: heroIdleFrames.map((_, frameIndex) => ({
+        key: 'hero-idle',
+        frame: `idle-${frameIndex}`,
+      })),
+      frameRate: 4,
+      repeat: -1,
+    });
+  }
+
+  removeSpriteSheetBackground(context, offsetX, offsetY) {
+    const image = context.getImageData(offsetX, offsetY, heroFrameWidth, heroFrameHeight);
+    const { data } = image;
+    const visited = new Uint8Array(heroFrameWidth * heroFrameHeight);
+    const queue = new Int32Array(visited.length);
+    let queueEnd = 0;
+    let queueStart = 0;
+
+    const isBackground = (index) => {
+      const pixel = index * 4;
+      const red = data[pixel];
+      const green = data[pixel + 1];
+      const blue = data[pixel + 2];
+      return red > 210
+        && green > 200
+        && blue > 185
+        && Math.max(red, green, blue) - Math.min(red, green, blue) < 55;
+    };
+    const addBackgroundPixel = (index) => {
+      if (!visited[index] && isBackground(index)) {
+        visited[index] = 1;
+        data[index * 4 + 3] = 0;
+        queue[queueEnd] = index;
+        queueEnd += 1;
+      }
+    };
+
+    for (let x = 0; x < heroFrameWidth; x += 1) {
+      addBackgroundPixel(x);
+      addBackgroundPixel((heroFrameHeight - 1) * heroFrameWidth + x);
+    }
+    for (let y = 1; y < heroFrameHeight - 1; y += 1) {
+      addBackgroundPixel(y * heroFrameWidth);
+      addBackgroundPixel(y * heroFrameWidth + heroFrameWidth - 1);
+    }
+
+    while (queueStart < queueEnd) {
+      const index = queue[queueStart];
+      queueStart += 1;
+      const x = index % heroFrameWidth;
+      const y = Math.floor(index / heroFrameWidth);
+
+      if (x > 0) addBackgroundPixel(index - 1);
+      if (x < heroFrameWidth - 1) addBackgroundPixel(index + 1);
+      if (y > 0) addBackgroundPixel(index - heroFrameWidth);
+      if (y < heroFrameHeight - 1) addBackgroundPixel(index + heroFrameWidth);
+    }
+
+    context.putImageData(image, offsetX, offsetY);
   }
 
   drawBattlefield() {
@@ -38,7 +154,7 @@ class BlackjackScene extends Phaser.Scene {
     backdrop.strokeCircle(650, 132, 82);
 
     this.drawHero(210, 141);
-    this.drawMonster(650, 141);
+    this.monsterSprite = this.drawMonster(650, 141);
 
     this.add.text(210, 34, 'HERO', {
       color: '#e9f5ed',
@@ -55,27 +171,8 @@ class BlackjackScene extends Phaser.Scene {
   }
 
   drawHero(x, y) {
-    const hero = this.add.container(x, y);
-    const addShape = (shape) => hero.add(shape);
-
-    addShape(this.add.ellipse(0, 66, 86, 16, 0x062d23, 0.8));
-    addShape(this.add.rectangle(-17, 46, 17, 38, 0x344c76).setOrigin(0.5, 0));
-    addShape(this.add.rectangle(17, 46, 17, 38, 0x344c76).setOrigin(0.5, 0));
-    addShape(this.add.rectangle(-18, 76, 28, 11, 0x302b2a));
-    addShape(this.add.rectangle(18, 76, 28, 11, 0x302b2a));
-    addShape(this.add.rectangle(0, 22, 54, 51, 0x4b75a7));
-    addShape(this.add.rectangle(0, 15, 15, 23, 0xc88f68));
-    addShape(this.add.ellipse(-35, 35, 18, 38, 0xc88f68).setRotation(-0.42));
-    addShape(this.add.ellipse(36, 26, 17, 35, 0xc88f68).setRotation(0.46));
-    addShape(this.add.circle(0, -13, 25, 0xc88f68));
-    addShape(this.add.ellipse(0, -30, 29, 15, 0x5b392e));
-    addShape(this.add.rectangle(-17, -21, 12, 13, 0x5b392e).setRotation(-0.3));
-    addShape(this.add.rectangle(-8, -14, 3, 3, 0x263443));
-    addShape(this.add.rectangle(8, -14, 3, 3, 0x263443));
-    addShape(this.add.line(0, -4, -5, -6, 5, -6, 0x713f34, 2));
-    addShape(this.add.rectangle(-40, 37, 6, 13, 0x6b432b).setRotation(-0.18));
-    addShape(this.add.line(0, 0, -40, 34, -54, -33, 0xd5e6e5, 1).setLineWidth(3, 3));
-    addShape(this.add.triangle(-56, -39, -61, -25, -50, -27, 0xc5d6cf));
+    this.add.ellipse(x, y + 66, 86, 16, 0x062d23, 0.8);
+    this.add.sprite(x, y, 'hero-idle', 'idle-0').play('hero-idle');
   }
 
   drawMonster(x, y) {
@@ -98,6 +195,7 @@ class BlackjackScene extends Phaser.Scene {
     addShape(this.add.triangle(0, -5, -12, -14, 12, -14, 0x472c2e));
     addShape(this.add.triangle(-8, -3, -4, 7, -1, -3, 0xf0e1ca));
     addShape(this.add.triangle(8, -3, 4, 7, 1, -3, 0xf0e1ca));
+    return monster;
   }
 
   renderGame(game, combatState = this.combatState) {
@@ -110,7 +208,18 @@ class BlackjackScene extends Phaser.Scene {
     this.healthLayer.removeAll(true);
     this.handLayer.removeAll(true);
     this.addHealthBar('Hero', combatState.playerHp, combatState.playerMaxHp ?? 100, 42, 88, 0x91c977);
-    this.addHealthBar('Monster', combatState.monsterHp, 100, 596, 88, 0xd46d5e);
+    this.addHealthBar(
+      combatState.boss ? 'BOSS' : 'MOB',
+      combatState.monsterHp,
+      combatState.monsterMaxHp ?? 40,
+      596,
+      88,
+      0xd46d5e,
+    );
+    this.monsterSprite.setScale(combatState.boss ? 1.3 : 1);
+    this.stageText.setText(
+      `DUNGEON · STAGE ${combatState.stage ?? 1} / ${combatState.stageCount ?? dungeonStageCount}${combatState.boss ? ' · BOSS' : ''}`,
+    );
     this.addHand('Dealer', game.dealerHand, game.dealerScore, 298, 262);
     this.addHand('You', game.playerHand, game.playerScore, 394, 358);
   }

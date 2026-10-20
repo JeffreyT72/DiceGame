@@ -4,16 +4,16 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#101a19" />
-    <title>Blackjack Battle</title>
+    <title>Dungeon Run</title>
   </head>
   <body>
     <main class="game-card">
       <header class="game-header">
         <div>
-          <p class="eyebrow">A blackjack battle</p>
-          <h1>Blackjack Hero</h1>
+          <p class="eyebrow">A 20-stage roguelike</p>
+          <h1>Dungeon Run</h1>
         </div>
-        <p class="rules">Win a hand to damage the monster.<br />Lose, and the dealer hits back.</p>
+        <p class="rules">Fight through 19 mobs, then face the boss.<br />Choose one item after every stage.</p>
       </header>
 
       <section id="auth-panel" class="auth-panel" aria-labelledby="auth-title">
@@ -44,65 +44,136 @@
           <span>Signed in as <strong id="account-name"></strong></span>
           <button id="signout-button" class="button button-quiet" type="button">Sign out</button>
         </div>
-        <section id="table" class="table" aria-label="Blackjack table">
+
+        <section id="lobby-screen" class="screen-panel" aria-labelledby="lobby-title">
+          <p class="eyebrow">Adventurer's hub</p>
+          <h2 id="lobby-title">Game menu</h2>
+          <p class="screen-description">Choose where you want to go.</p>
+          <p class="lobby-level">Character level <strong id="lobby-level">Level 1</strong></p>
+          <nav class="lobby-options" aria-label="Game menu">
+            <button id="start-game-button" class="lobby-option lobby-option-primary" type="button">
+              <strong>Start a game</strong><span>Enter the dungeon</span>
+            </button>
+            <button id="multiplayer-button" class="lobby-option" type="button">
+              <strong>Multiplayer</strong><span>Coming soon</span>
+            </button>
+            <button id="lab-button" class="lobby-option" type="button">
+              <strong>Lab</strong><span>Perma character stats</span>
+            </button>
+            <button id="leaderboard-button" class="lobby-option" type="button">
+              <strong>Leaderboard</strong><span>Top adventurers by EXP</span>
+            </button>
+            <button id="settings-button" class="lobby-option" type="button">
+              <strong>Settings</strong><span>Coming soon</span>
+            </button>
+          </nav>
+        </section>
+
+        <section id="dungeon-screen" class="screen-panel" aria-label="Dungeon" hidden>
+          <button class="button button-quiet screen-back" type="button" data-back-to-lobby>Back to game menu</button>
+
+        <section class="dungeon-controls" aria-label="Dungeon run setup">
+          <div>
+            <span>Suggested character level</span>
+            <strong id="suggested-level">Level 1</strong>
+          </div>
+        </section>
+
+        <p id="dungeon-progress" class="dungeon-progress">Your next run is ready when you are.</p>
+        <section class="item-inventory" aria-label="Run items">
+          <h2>Active items</h2>
+          <ul id="active-items" hidden></ul>
+          <p id="empty-inventory">No items collected this run.</p>
+        </section>
+
+        <section id="table" class="table" aria-label="Dungeon battlefield">
           <div id="game"></div>
         </section>
-      <section class="progression" aria-label="Player progression">
-        <div class="progression-labels">
-          <strong id="player-level">Level 1</strong>
-          <span id="player-exp">0 / 100 EXP</span>
-        </div>
-        <div
-          id="experience-bar"
-          class="experience-bar"
-          role="progressbar"
-          aria-label="Experience toward next level"
-          aria-valuemin="0"
-          aria-valuemax="100"
-          aria-valuenow="0"
-          aria-valuetext="0 of 100 experience toward level 2"
-        >
-          <div id="experience-fill" class="experience-fill"></div>
-        </div>
-      </section>
 
-      <section class="character-stats" aria-label="Character stats">
-        <div class="stat-heading">
-          <h2>Character stats</h2>
-          <strong id="stat-points">Unspent stat points: 0</strong>
-        </div>
-        <div class="stat-grid">
-          <article class="stat-card">
-            <div><strong>Strength (STR)</strong><span id="stat-strength">0</span></div>
-            <p>+1 damage per point</p>
-            <button class="button button-secondary" type="button" data-stat="strength">Add point</button>
-          </article>
-          <article class="stat-card">
-            <div><strong>Agility (AGI)</strong><span id="stat-agility">0</span></div>
-            <p id="stat-agility-bonus">0% dodge</p>
-            <button class="button button-secondary" type="button" data-stat="agility">Add point</button>
-          </article>
-          <article class="stat-card">
-            <div><strong>Constitution (CON)</strong><span id="stat-constitution">0</span></div>
-            <p id="stat-constitution-bonus">+0 max HP</p>
-            <button class="button button-secondary" type="button" data-stat="constitution">Add point</button>
-          </article>
-          <article class="stat-card">
-            <div><strong>Luck</strong><span id="stat-luck">0</span></div>
-            <p id="stat-luck-bonus">0% critical</p>
-            <button class="button button-secondary" type="button" data-stat="luck">Add point</button>
-          </article>
-        </div>
-      </section>
+        <p id="status" class="status" role="status" aria-live="polite">Prepare for the dungeon.</p>
 
-      <p id="status" class="status" role="status" aria-live="polite">Getting the cards ready…</p>
+        <div id="loot-panel" class="loot-panel" hidden>
+          <h2>Choose one item</h2>
+          <p>Choose one temporary item to use for the rest of this dungeon run.</p>
+          <div id="loot-choices" class="loot-choices"></div>
+        </div>
 
-      <div class="actions">
-        <button id="hit-button" class="button button-primary" type="button" disabled>Hit</button>
-        <button id="stand-button" class="button button-secondary" type="button" disabled>Stand</button>
-        <button id="new-game-button" class="button button-quiet" type="button">New game</button>
-      </div>
-      <p class="footnote">The hero starts with 100 HP and the monster with 100 HP. Strength adds damage, agility can dodge attacks, constitution adds max HP, and luck can land critical hits. Each level gained grants one stat point. Defeating a monster grants 50 EXP; each level requires 100 more EXP than the previous level.</p>
+        <div id="game-actions" class="actions" hidden>
+          <button id="hit-button" class="button button-primary" type="button" disabled>Hit</button>
+          <button id="stand-button" class="button button-secondary" type="button" disabled>Stand</button>
+          <button id="new-game-button" class="button button-quiet" type="button" disabled>Next hand</button>
+        </div>
+        </section>
+
+        <section id="lab-screen" class="screen-panel" aria-labelledby="lab-title" hidden>
+          <button class="button button-quiet screen-back" type="button" data-back-to-lobby>Back to game menu</button>
+          <p class="eyebrow">Character development</p>
+          <h2 id="lab-title">Lab</h2>
+          <section class="progression" aria-label="Player progression">
+            <div class="progression-labels">
+              <strong id="player-level">Level 1</strong>
+              <span id="player-exp">0 / 100 EXP</span>
+            </div>
+            <div id="experience-bar" class="experience-bar" role="progressbar" aria-label="Experience toward next level"
+              aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"
+              aria-valuetext="0 of 100 experience toward level 2">
+              <div id="experience-fill" class="experience-fill"></div>
+            </div>
+          </section>
+        <section class="character-stats" aria-label="Character stats">
+          <div class="stat-heading">
+            <h3>Character stats</h3>
+            <strong id="stat-points">Unspent stat points: 0</strong>
+          </div>
+          <div class="stat-grid">
+            <article class="stat-card">
+              <div><strong>Strength (STR)</strong><span id="stat-strength">0</span></div>
+              <p>+1 damage per point</p>
+              <button class="button button-secondary" type="button" data-stat="strength">Add point</button>
+            </article>
+            <article class="stat-card">
+              <div><strong>Agility (AGI)</strong><span id="stat-agility">0</span></div>
+              <p id="stat-agility-bonus">0% dodge</p>
+              <button class="button button-secondary" type="button" data-stat="agility">Add point</button>
+            </article>
+            <article class="stat-card">
+              <div><strong>Constitution (CON)</strong><span id="stat-constitution">0</span></div>
+              <p id="stat-constitution-bonus">+0 max HP</p>
+              <button class="button button-secondary" type="button" data-stat="constitution">Add point</button>
+            </article>
+            <article class="stat-card">
+              <div><strong>Luck</strong><span id="stat-luck">0</span></div>
+              <p id="stat-luck-bonus">0% critical</p>
+              <button class="button button-secondary" type="button" data-stat="luck">Add point</button>
+            </article>
+          </div>
+        </section>
+        </section>
+
+        <section id="leaderboard-screen" class="screen-panel" aria-labelledby="leaderboard-title" hidden>
+          <button class="button button-quiet screen-back" type="button" data-back-to-lobby>Back to game menu</button>
+          <p class="eyebrow">Top adventurers</p>
+          <h2 id="leaderboard-title">Leaderboard</h2>
+          <p id="leaderboard-status" class="screen-description" role="status" aria-live="polite"></p>
+          <div class="leaderboard-columns">
+            <section class="leaderboard-category" aria-labelledby="experience-leaderboard-title">
+              <h3 id="experience-leaderboard-title">Total EXP</h3>
+              <ol id="experience-leaderboard-list" class="leaderboard-list"></ol>
+            </section>
+            <section class="leaderboard-category" aria-labelledby="monsters-leaderboard-title">
+              <h3 id="monsters-leaderboard-title">Monsters defeated</h3>
+              <ol id="monsters-leaderboard-list" class="leaderboard-list"></ol>
+            </section>
+          </div>
+        </section>
+
+        <section id="placeholder-screen" class="screen-panel placeholder-screen" hidden>
+          <button class="button button-quiet screen-back" type="button" data-back-to-lobby>Back to game menu</button>
+          <p class="eyebrow">Coming soon</p>
+          <h2 id="placeholder-title"></h2>
+          <p id="placeholder-description" class="screen-description"></p>
+        </section>
+
       </section>
     </main>
     <script type="module" src="/src/main.js"></script>

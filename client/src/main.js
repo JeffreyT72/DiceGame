@@ -1,369 +1,556 @@
 import './style.css';
 import { createBlackjackGame } from './blackjack-scene.js';
+import { request } from './services/api.js';
+import { createAuthController } from './ui/auth.js';
+import { createCharacterLab } from './ui/character-lab.js';
+import { createScreenController } from './ui/screens.js';
+import { chooseItemOptions, getItem, getItemEffects } from './items.js';
+import { dungeonStageCount } from '../../shared/dungeon-config.js';
+
+const stageCount = dungeonStageCount;
+const mobHealth = 20;
+const bossHealth = 100;
+const dungeonExpReward = 1000;
+const cardActionDelayMs = 200;
+const winningOutcomes = ['player_blackjack', 'player_win', 'dealer_bust'];
+const losingOutcomes = ['dealer_blackjack', 'player_bust', 'dealer_win'];
+const expRequiredForNextLevel = (level) => level * 100;
 
 let game = null;
-const hitButton = document.querySelector('#hit-button');
-const standButton = document.querySelector('#stand-button');
-const newGameButton = document.querySelector('#new-game-button');
-const status = document.querySelector('#status');
-const table = document.querySelector('#table');
-const authPanel = document.querySelector('#auth-panel');
-const authForm = document.querySelector('#auth-form');
-const authTitle = document.querySelector('#auth-title');
-const authSubmit = document.querySelector('#auth-submit');
-const authSwitch = document.querySelector('#auth-switch');
-const authError = document.querySelector('#auth-error');
-const loginFields = document.querySelector('#login-fields');
-const signupFields = document.querySelector('#signup-fields');
-const authIdentifier = document.querySelector('#auth-identifier');
-const authUsername = document.querySelector('#auth-username');
-const authEmail = document.querySelector('#auth-email');
-const authPassword = document.querySelector('#auth-password');
-const gamePanel = document.querySelector('#game-panel');
-const accountName = document.querySelector('#account-name');
-const signoutButton = document.querySelector('#signout-button');
-const statPoints = document.querySelector('#stat-points');
-const statButtons = [...document.querySelectorAll('[data-stat]')];
-
-const initialCombatState = (playerHp = 100) => ({
-  playerHp,
-  monsterHp: 100,
-  playerLevel: 1,
-  playerExp: 0,
-  lastResolvedGameId: null,
-  lastRoundMessage: '',
-  pendingExpAwards: [],
-});
-const monsterDefeatExp = 50;
-const expRequiredForNextLevel = (level) => level * 100;
 let currentGame = null;
-let combatState = initialCombatState();
 let currentPlayer = null;
 let currentStats = {
+  totalExp: 0,
   strength: 0,
   agility: 0,
   constitution: 0,
   luck: 0,
   availableStatPoints: 0,
 };
-let authMode = 'login';
-let combatStorageKey = '';
+let runState = null;
+let runStorageKey = '';
 let gameStorageKey = '';
-let allocatingStat = false;
-const playerLevel = document.querySelector('#player-level');
-const playerExp = document.querySelector('#player-exp');
-const experienceBar = document.querySelector('#experience-bar');
-const experienceFill = document.querySelector('#experience-fill');
+let resolvingStage = false;
+let dungeonLoadPromise = null;
+let renderProgression;
 
-function applyTotalExp(totalExp) {
-  combatState.playerLevel = 1;
-  combatState.playerExp = totalExp;
-  while (combatState.playerExp >= expRequiredForNextLevel(combatState.playerLevel)) {
-    combatState.playerExp -= expRequiredForNextLevel(combatState.playerLevel);
-    combatState.playerLevel += 1;
-  }
-}
+const hitButton = document.querySelector('#hit-button');
+const standButton = document.querySelector('#stand-button');
+const newGameButton = document.querySelector('#new-game-button');
+const suggestedLevel = document.querySelector('#suggested-level');
+const status = document.querySelector('#status');
+const dungeonProgress = document.querySelector('#dungeon-progress');
+const table = document.querySelector('#table');
+const lootPanel = document.querySelector('#loot-panel');
+const accountName = document.querySelector('#account-name');
+const experienceLeaderboardList = document.querySelector('#experience-leaderboard-list');
+const monstersLeaderboardList = document.querySelector('#monsters-leaderboard-list');
+const leaderboardStatus = document.querySelector('#leaderboard-status');
 
-function getTotalExp() {
-  const levelsCompleted = combatState.playerLevel - 1;
-  return levelsCompleted * (levelsCompleted + 1) / 2 * 100 + combatState.playerExp;
-}
-
-function maximumHealth() {
+function baseMaximumHealth() {
   return 100 + currentStats.constitution * 20;
 }
 
-function loadCombatState(stats) {
-  currentStats = stats;
-  const savedState = localStorage.getItem(combatStorageKey);
-  if (!savedState) {
-    combatState = initialCombatState(maximumHealth());
-  } else {
-    const parsedState = JSON.parse(savedState);
-    if (
-      !Number.isInteger(parsedState.playerHp)
-      || parsedState.playerHp < 0
-      || parsedState.playerHp > maximumHealth()
-      || !Number.isInteger(parsedState.monsterHp)
-      || parsedState.monsterHp < 0
-      || parsedState.monsterHp > 100
-      || (parsedState.lastResolvedGameId !== null && typeof parsedState.lastResolvedGameId !== 'string')
-      || typeof parsedState.lastRoundMessage !== 'string'
-      || (parsedState.pendingExpAwards !== undefined
-        && (!Array.isArray(parsedState.pendingExpAwards)
-          || parsedState.pendingExpAwards.some((gameId) => typeof gameId !== 'string')))
-    ) {
-      throw new Error('Saved combat health is invalid. Clear this site’s local storage to start fresh.');
-    }
-
-    combatState = {
-      ...initialCombatState(),
-      ...parsedState,
-      pendingExpAwards: parsedState.pendingExpAwards ?? [],
-    };
-  }
-  applyTotalExp(stats.totalExp);
+function maximumHealth() {
+  const itemEffects = runState && !['failed', 'complete'].includes(runState.phase)
+    ? getItemEffects(runState.items)
+    : { maxHealth: 0 };
+  return baseMaximumHealth() + itemEffects.maxHealth;
 }
 
-function saveCombatState() {
-  if (combatStorageKey) {
-    const { playerLevel: _playerLevel, playerExp: _playerExp, ...savedState } = combatState;
-    localStorage.setItem(combatStorageKey, JSON.stringify(savedState));
+function suggestedCharacterLevel() {
+  return Math.min(10, Math.max(1, currentStats.level ?? 1));
+}
+
+function initialRunState(dungeon) {
+  return {
+    dungeonId: dungeon.id,
+    suggestedLevel: dungeon.suggestedLevel,
+    stage: 1,
+    playerHp: baseMaximumHealth(),
+    monsterHp: mobHealth,
+    lastResolvedGameId: null,
+    lastRoundMessage: '',
+    phase: 'active',
+    pendingStageClear: null,
+    items: [],
+  };
+}
+
+function saveRunState() {
+  if (runStorageKey && runState) {
+    localStorage.setItem(runStorageKey, JSON.stringify(runState));
   }
 }
 
-function resolveCombatRound(gameState) {
-  if (gameState.status !== 'complete' || gameState.id === combatState.lastResolvedGameId) {
-    return null;
+function applyTotalExp(totalExp) {
+  let level = 1;
+  let remainingExp = totalExp;
+  while (remainingExp >= expRequiredForNextLevel(level)) {
+    remainingExp -= expRequiredForNextLevel(level);
+    level += 1;
   }
-
-  let earnedExp = false;
-  if (['player_blackjack', 'player_win', 'dealer_bust'].includes(gameState.outcome)) {
-    const baseDamage = gameState.playerScore + currentStats.strength;
-    const criticalChance = Math.min(100, currentStats.luck * 3);
-    const criticalHit = Math.random() * 100 < criticalChance;
-    const damage = criticalHit ? Math.floor(baseDamage * 1.5) : baseDamage;
-    const monsterWasAlive = combatState.monsterHp > 0;
-    combatState.monsterHp = Math.max(0, combatState.monsterHp - damage);
-    combatState.lastRoundMessage = criticalHit
-      ? `Critical hit! You deal ${damage} damage to the monster.`
-      : `You deal ${damage} damage to the monster.`;
-    if (monsterWasAlive && combatState.monsterHp === 0) {
-      combatState.playerExp += monsterDefeatExp;
-      earnedExp = true;
-      combatState.lastRoundMessage += ` Monster defeated! You gain ${monsterDefeatExp} EXP.`;
-
-      let leveledUp = false;
-      while (combatState.playerExp >= expRequiredForNextLevel(combatState.playerLevel)) {
-        combatState.playerExp -= expRequiredForNextLevel(combatState.playerLevel);
-        combatState.playerLevel += 1;
-        leveledUp = true;
-      }
-      if (leveledUp) {
-        combatState.lastRoundMessage += ` Level up! You are now level ${combatState.playerLevel}.`;
-      }
-    }
-  } else if (['dealer_blackjack', 'player_bust', 'dealer_win'].includes(gameState.outcome)) {
-    const damage = gameState.dealerScore;
-    const dodgeChance = Math.min(100, currentStats.agility * 5);
-    if (Math.random() * 100 < dodgeChance) {
-      combatState.lastRoundMessage = `You dodge the monster's ${damage}-damage attack.`;
-    } else {
-      combatState.playerHp = Math.max(0, combatState.playerHp - damage);
-      combatState.lastRoundMessage = `The monster deals ${damage} damage to you.`;
-    }
-  } else {
-    combatState.lastRoundMessage = 'No damage dealt.';
-  }
-
-  combatState.lastResolvedGameId = gameState.id;
-  if (earnedExp) {
-    combatState.pendingExpAwards.push(gameState.id);
-  }
-  saveCombatState();
-  return earnedExp ? gameState.id : null;
+  currentStats.totalExp = totalExp;
+  currentStats.level = level;
+  currentStats.expIntoLevel = remainingExp;
 }
 
-async function request(path, options) {
-  const response = await fetch(path, options);
-  const body = response.status === 204 ? null : await response.json();
-  if (!response.ok) {
-    const error = new Error(body.error ?? `Request failed (${response.status})`);
-    error.status = response.status;
-    throw error;
-  }
-  return body;
+function maximumMonsterHealth(stage) {
+  return stage === stageCount ? bossHealth : mobHealth;
 }
 
 function outcomeMessage(outcome) {
   const messages = {
-    player_blackjack: 'Blackjack! You win.',
-    dealer_blackjack: 'Dealer has blackjack. You lose.',
-    player_bust: 'Bust! You went over 21.',
-    dealer_bust: 'Dealer busts. You win!',
-    player_win: 'You win!',
-    dealer_win: 'Dealer wins.',
-    push: 'Push. It’s a tie.',
+    player_blackjack: 'Blackjack! You win the hand.',
+    dealer_blackjack: 'The monster wins the hand.',
+    player_bust: 'Bust! The monster wins the hand.',
+    dealer_bust: 'The monster busts. You win the hand!',
+    player_win: 'You win the hand!',
+    dealer_win: 'The monster wins the hand.',
+    push: 'Push. No damage dealt.',
   };
   return messages[outcome] ?? 'Your hand is in play.';
 }
 
-function render(gameState) {
-  currentGame = gameState;
-  const earnedExpGameId = resolveCombatRound(gameState);
-  if (earnedExpGameId) {
-    syncProgression(earnedExpGameId).catch((error) => {
+function resolveCombatRound(gameState) {
+  if (
+    !runState
+    || runState.phase !== 'active'
+    || gameState.status !== 'complete'
+    || gameState.id === runState.lastResolvedGameId
+  ) {
+    return;
+  }
+
+  if (winningOutcomes.includes(gameState.outcome)) {
+    const itemEffects = getItemEffects(runState.items);
+    const baseDamage = gameState.playerScore + currentStats.strength + itemEffects.attack;
+    const criticalChance = Math.min(100, currentStats.luck * 3 + itemEffects.criticalChance * 100);
+    const criticalHit = Math.random() * 100 < criticalChance;
+    const damage = criticalHit ? Math.floor(baseDamage * 1.5) : baseDamage;
+    runState.monsterHp = Math.max(0, runState.monsterHp - damage);
+    const healing = Math.min(
+      maximumHealth() - runState.playerHp,
+      Math.ceil(maximumHealth() * itemEffects.healOnHit),
+    );
+    runState.playerHp += healing;
+    const hitMessage = criticalHit
+      ? `Critical hit! You deal ${damage} damage.`
+      : `You deal ${damage} damage.`;
+    runState.lastRoundMessage = healing > 0
+      ? `${hitMessage} The necklace restores ${healing} HP.`
+      : hitMessage;
+    if (runState.monsterHp === 0) {
+      runState.phase = 'clearing';
+      runState.pendingStageClear = { stage: runState.stage, gameId: gameState.id };
+    }
+  } else if (losingOutcomes.includes(gameState.outcome)) {
+    const itemEffects = getItemEffects(runState.items);
+    const baseDamage = gameState.dealerScore;
+    const damage = Math.floor(baseDamage * (1 - itemEffects.damageReduction));
+    const dodgeChance = Math.min(100, currentStats.agility * 5 + itemEffects.dodgeChance * 100);
+    if (Math.random() * 100 < dodgeChance) {
+      runState.lastRoundMessage = `You dodge the monster's ${damage}-damage attack.`;
+    } else {
+      runState.playerHp = Math.max(0, runState.playerHp - damage);
+      runState.lastRoundMessage = `The monster deals ${damage} damage to you.`;
+    }
+    if (runState.playerHp === 0) {
+      runState.phase = 'failed';
+      runState.items = [];
+    }
+  } else {
+    runState.lastRoundMessage = 'No damage dealt.';
+  }
+
+  runState.lastResolvedGameId = gameState.id;
+  saveRunState();
+  if (runState.pendingStageClear) {
+    syncStageClear().catch((error) => {
       console.error(error);
-      status.textContent = `Could not save your experience: ${error.message}`;
+      status.textContent = `Could not save stage ${runState.stage}: ${error.message}. Retry the stage clear.`;
+      renderControls();
     });
   }
-  game.scene.getScene('blackjack').renderGame(gameState, {
-    ...combatState,
-    playerMaxHp: maximumHealth(),
-  });
-  renderProgression();
-  table.setAttribute(
-    'aria-label',
-    `Hero health ${combatState.playerHp} of ${maximumHealth()}. Monster health ${combatState.monsterHp} of 100. Dealer hand, ${gameState.dealerHand.length} cards. Your hand, ${gameState.playerHand.length} cards, score ${gameState.playerScore}.`,
-  );
-  const battleOver = combatState.playerHp === 0 || combatState.monsterHp === 0;
-  hitButton.disabled = gameState.status !== 'playing' || battleOver;
-  standButton.disabled = gameState.status !== 'playing' || battleOver;
-  const roundMessage = gameState.status === 'complete'
-    && gameState.id === combatState.lastResolvedGameId
-    ? combatState.lastRoundMessage
-    : '';
-  const defeatMessage = combatState.playerHp === 0
-    ? ' Your hero has fallen. Start a new game to begin a fresh battle.'
-    : combatState.monsterHp === 0
-      ? ' The monster is defeated! Start a new game to begin a fresh battle.'
-      : '';
-  status.textContent = [outcomeMessage(gameState.outcome), roundMessage].filter(Boolean).join(' ')
-    + defeatMessage;
 }
 
-async function startGame() {
+function render(gameState) {
+  currentGame = gameState;
+  resolveCombatRound(gameState);
+  const boss = runState?.stage === stageCount;
+  if (game) {
+    game.scene.getScene('blackjack').renderGame(gameState, {
+      playerHp: runState?.playerHp ?? maximumHealth(),
+      playerMaxHp: maximumHealth(),
+      monsterHp: runState?.monsterHp ?? mobHealth,
+      monsterMaxHp: runState ? maximumMonsterHealth(runState.stage) : mobHealth,
+      stage: runState?.stage ?? 1,
+      stageCount,
+      boss,
+    });
+  }
+  renderProgression();
+  renderControls();
+  table.setAttribute(
+    'aria-label',
+    `Stage ${runState?.stage ?? 1} of ${stageCount}${boss ? ', boss' : ''}. Hero health ${runState?.playerHp ?? maximumHealth()} of ${maximumHealth()}. Monster health ${runState?.monsterHp ?? mobHealth}.`,
+  );
+
+  if (runState?.phase === 'failed') {
+    status.textContent = `You were defeated on stage ${runState.stage}. No EXP is awarded; start a new dungeon to try again.`;
+  } else if (runState?.phase === 'complete') {
+    status.textContent = `Dungeon cleared! You earned ${dungeonExpReward} EXP.`;
+  } else if (runState?.phase === 'loot') {
+    status.textContent = `Stage ${runState.stage} cleared. Choose one item to continue.`;
+  } else if (runState?.phase === 'clearing') {
+    status.textContent = `Stage ${runState.stage} defeated. Saving your progress…`;
+  } else {
+    const roundMessage = gameState.status === 'complete'
+      && gameState.id === runState?.lastResolvedGameId
+      ? runState.lastRoundMessage
+      : '';
+    status.textContent = [outcomeMessage(gameState.outcome), roundMessage].filter(Boolean).join(' ');
+  }
+}
+
+function renderControls() {
+  const active = runState?.phase === 'active';
+  const handInProgress = currentGame?.status === 'playing';
+  const stageComplete = runState?.phase === 'loot';
+  hitButton.disabled = !active || !handInProgress;
+  standButton.disabled = !active || !handInProgress;
+  newGameButton.disabled = resolvingStage
+    || (runState?.phase === 'clearing' ? false : !active || handInProgress);
+  suggestedLevel.textContent = `Level ${runState?.suggestedLevel ?? suggestedCharacterLevel()}`;
+  lootPanel.hidden = !stageComplete;
+  renderItemInventory();
+  renderLootChoices();
+  newGameButton.textContent = runState?.phase === 'clearing' ? 'Retry stage clear' : 'Next hand';
+
+  if (!runState) {
+    dungeonProgress.textContent = 'Your next run is ready when you are.';
+  } else {
+    const label = runState.stage === stageCount ? 'Boss' : 'Mob';
+    dungeonProgress.textContent = runState.phase === 'complete'
+      ? 'Dungeon cleared!'
+      : runState.phase === 'failed'
+        ? `Run ended · Defeated on stage ${runState.stage} of ${stageCount}`
+        : `Stage ${runState.stage} of ${stageCount} · ${label} · ${runState.items.length} item${runState.items.length === 1 ? '' : 's'} collected`;
+  }
+}
+
+function renderItemInventory() {
+  const activeItems = document.querySelector('#active-items');
+  const emptyInventory = document.querySelector('#empty-inventory');
+  const groupedItems = new Map();
+  for (const collectedItem of runState?.items ?? []) {
+    if (!collectedItem || typeof collectedItem.itemId !== 'string') continue;
+    const item = getItem(collectedItem.itemId);
+    if (item) groupedItems.set(item, (groupedItems.get(item) ?? 0) + 1);
+  }
+
+  activeItems.replaceChildren();
+  activeItems.hidden = groupedItems.size === 0;
+  emptyInventory.hidden = groupedItems.size > 0;
+  for (const [item, count] of groupedItems) {
+    const entry = document.createElement('li');
+    entry.textContent = `${item.name}${count > 1 ? ` ×${count}` : ''}`;
+    activeItems.append(entry);
+  }
+}
+
+function renderLootChoices() {
+  const lootChoices = document.querySelector('#loot-choices');
+  lootChoices.replaceChildren();
+  for (const itemId of runState?.lootChoices ?? []) {
+    const item = getItem(itemId);
+    if (!item) continue;
+    const button = document.createElement('button');
+    button.className = 'loot-choice';
+    button.type = 'button';
+    button.dataset.item = item.id;
+    button.disabled = resolvingStage;
+    const name = document.createElement('strong');
+    name.textContent = item.name;
+    const description = document.createElement('span');
+    description.textContent = item.description;
+    button.append(name, description);
+    button.addEventListener('click', () => chooseItem(item.id));
+    lootChoices.append(button);
+  }
+}
+
+async function startHand() {
   const { game: newGame } = await request('/api/games', { method: 'POST' });
   localStorage.setItem(gameStorageKey, newGame.id);
   render(newGame);
 }
 
-async function loadGame() {
-  const { stats } = await request('/api/player/stats');
-  loadCombatState(stats);
-  const savedId = localStorage.getItem(gameStorageKey);
-  if (!savedId) {
-    await startGame();
-  } else {
-    try {
-      const { game: savedGame } = await request(`/api/games/${encodeURIComponent(savedId)}`);
-      render(savedGame);
-    } catch (error) {
-      if (error.status !== 404) {
-        throw error;
-      }
-      await startGame();
-    }
+async function syncStageClear() {
+  if (!runState?.pendingStageClear || resolvingStage) {
+    return;
   }
-
+  resolvingStage = true;
+  renderControls();
+  const { stage, gameId } = runState.pendingStageClear;
   try {
-    await syncPendingExpAwards();
-  } catch (error) {
-    console.error(error);
-    status.textContent = `Could not save your experience: ${error.message}`;
-  }
-}
-
-async function syncProgression(gameId) {
-  const { stats } = await request('/api/player/progression', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ gameId }),
-  });
-  currentStats = stats;
-  applyTotalExp(Math.max(getTotalExp(), stats.totalExp));
-  combatState.pendingExpAwards = combatState.pendingExpAwards.filter((pendingGameId) => pendingGameId !== gameId);
-  saveCombatState();
-  renderProgression();
-}
-
-async function syncPendingExpAwards() {
-  for (const gameId of combatState.pendingExpAwards) {
-    await syncProgression(gameId);
-  }
-}
-
-function renderProgression() {
-  const expRequired = expRequiredForNextLevel(combatState.playerLevel);
-  playerLevel.textContent = `Level ${combatState.playerLevel}`;
-  playerExp.textContent = `${combatState.playerExp} / ${expRequired} EXP`;
-  experienceBar.setAttribute('aria-valuemax', String(expRequired));
-  experienceBar.setAttribute('aria-valuenow', String(combatState.playerExp));
-  experienceBar.setAttribute(
-    'aria-valuetext',
-    `${combatState.playerExp} of ${expRequired} experience toward level ${combatState.playerLevel + 1}`,
-  );
-  experienceFill.style.width = `${combatState.playerExp / expRequired * 100}%`;
-  statPoints.textContent = `Unspent stat points: ${currentStats.availableStatPoints}`;
-  for (const button of statButtons) {
-    button.disabled = allocatingStat || currentStats.availableStatPoints < 1;
-  }
-  document.querySelector('#stat-strength').textContent = currentStats.strength;
-  document.querySelector('#stat-agility').textContent = currentStats.agility;
-  document.querySelector('#stat-constitution').textContent = currentStats.constitution;
-  document.querySelector('#stat-luck').textContent = currentStats.luck;
-  document.querySelector('#stat-agility-bonus').textContent = `${Math.min(100, currentStats.agility * 5)}% dodge`;
-  document.querySelector('#stat-constitution-bonus').textContent = `+${currentStats.constitution * 20} max HP`;
-  document.querySelector('#stat-luck-bonus').textContent = `${Math.min(100, currentStats.luck * 3)}% critical (1.5x)`;
-}
-
-async function allocateStat(stat) {
-  allocatingStat = true;
-  renderProgression();
-  try {
-    const { stats } = await request('/api/player/stats/allocate', {
+    const result = await request(`/api/dungeons/${encodeURIComponent(runState.dungeonId)}/clear-stage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ stat }),
+      body: JSON.stringify({ stage, gameId }),
     });
-    currentStats = stats;
-    applyTotalExp(stats.totalExp);
-    if (stat === 'constitution') {
-      combatState.playerHp = Math.min(maximumHealth(), combatState.playerHp + 20);
-      saveCombatState();
+    if (result.stats) {
+      currentStats = result.stats;
+      applyTotalExp(result.stats.totalExp);
     }
+    runState.pendingStageClear = null;
+    runState.phase = stage === stageCount ? 'complete' : 'loot';
+    runState.lootChoices = stage === stageCount ? [] : chooseItemOptions();
+    if (stage === stageCount) {
+      runState.items = [];
+      runState.playerHp = Math.min(runState.playerHp, baseMaximumHealth());
+    }
+    saveRunState();
     renderProgression();
-    if (currentGame) {
-      render(currentGame);
+    if (stage === stageCount) {
+      status.textContent = `Dungeon cleared! You earned ${dungeonExpReward} EXP.`;
+    } else {
+      status.textContent = `Stage ${stage} cleared. Choose one item to continue.`;
     }
-    status.textContent = `${stat.toUpperCase()} increased.`;
-  } catch (error) {
-    console.error(error);
-    status.textContent = `Could not allocate your stat point: ${error.message}`;
   } finally {
-    allocatingStat = false;
-    renderProgression();
+    resolvingStage = false;
+    renderControls();
   }
 }
 
-function showAuth(mode = 'login') {
-  authMode = mode;
-  const signingUp = mode === 'signup';
-  authTitle.textContent = signingUp ? 'Create your account' : 'Sign in to play';
-  authSubmit.textContent = signingUp ? 'Create account' : 'Sign in';
-  authSwitch.textContent = signingUp ? 'Already have an account? Sign in' : 'Need an account? Sign up';
-  loginFields.hidden = signingUp;
-  signupFields.hidden = !signingUp;
-  authIdentifier.required = !signingUp;
-  authUsername.required = signingUp;
-  authEmail.required = signingUp;
-  authPassword.autocomplete = signingUp ? 'new-password' : 'current-password';
-  authError.textContent = '';
-  authPanel.hidden = false;
-  gamePanel.hidden = true;
+async function beginDungeon() {
+  try {
+    const { dungeon } = await request('/api/dungeons', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ suggestedLevel: suggestedCharacterLevel() }),
+    });
+    runState = initialRunState(dungeon);
+    saveRunState();
+    await startHand();
+  } catch (error) {
+    console.error(error);
+    status.textContent = `Could not enter the dungeon: ${error.message}`;
+  }
+}
+
+async function chooseItem(itemId) {
+  if (runState?.phase !== 'loot' || resolvingStage) {
+    return;
+  }
+  const item = getItem(itemId);
+  if (!item || !runState.lootChoices?.includes(itemId)) {
+    return;
+  }
+  resolvingStage = true;
+  renderControls();
+  const clearedStage = runState.stage;
+  const previousMaxHealth = maximumHealth();
+  runState.items.push({ stage: clearedStage, itemId });
+  if (item.effects.maxHealth) {
+    runState.playerHp = Math.min(
+      maximumHealth(),
+      runState.playerHp + maximumHealth() - previousMaxHealth,
+    );
+  }
+  runState.lootChoices = [];
+  runState.stage += 1;
+  runState.monsterHp = maximumMonsterHealth(runState.stage);
+  runState.phase = 'active';
+  runState.lastRoundMessage = '';
+  saveRunState();
+  try {
+    await startHand();
+  } catch (error) {
+    console.error(error);
+    status.textContent = `Could not start stage ${runState.stage}: ${error.message}`;
+    renderControls();
+  } finally {
+    resolvingStage = false;
+    renderControls();
+  }
+}
+
+async function loadDungeon() {
+  const storedRun = localStorage.getItem(runStorageKey);
+  if (!storedRun) {
+    runState = null;
+    currentGame = null;
+    renderControls();
+    status.textContent = 'Your next run is ready when you are.';
+    return;
+  }
+
+  const parsed = JSON.parse(storedRun);
+  const savedMaxHealth = baseMaximumHealth()
+    + getItemEffects(Array.isArray(parsed.items) ? parsed.items : []).maxHealth;
+  if (
+    typeof parsed.dungeonId !== 'string'
+    || !Number.isInteger(parsed.stage)
+    || parsed.stage < 1
+    || parsed.stage > stageCount
+    || !Number.isInteger(parsed.playerHp)
+    || parsed.playerHp < 0
+    || parsed.playerHp > savedMaxHealth
+    || !Number.isInteger(parsed.monsterHp)
+    || parsed.monsterHp < 0
+    || parsed.monsterHp > bossHealth
+    || !['active', 'clearing', 'loot', 'failed', 'complete'].includes(parsed.phase)
+    || !Array.isArray(parsed.items)
+  ) {
+    throw new Error('Saved dungeon progress is invalid. Clear this site’s local storage to start fresh.');
+  }
+  runState = parsed;
+  let dungeon;
+  try {
+    ({ dungeon } = await request(`/api/dungeons/${encodeURIComponent(runState.dungeonId)}`));
+  } catch (error) {
+    if (error.status !== 404) throw error;
+    localStorage.removeItem(runStorageKey);
+    localStorage.removeItem(gameStorageKey);
+    runState = null;
+    currentGame = null;
+    renderProgression();
+    renderControls();
+    status.textContent = 'Your saved dungeon could not be found. Start a new dungeon to continue.';
+    return;
+  }
+  if (dungeon.completed) {
+    runState.phase = 'complete';
+    runState.items = [];
+    runState.lootChoices = [];
+    runState.playerHp = Math.min(runState.playerHp, baseMaximumHealth());
+    runState.stage = stageCount;
+    runState.pendingStageClear = null;
+  }
+  runState.suggestedLevel = dungeon.suggestedLevel;
+  saveRunState();
+  renderControls();
+
+  const savedGameId = localStorage.getItem(gameStorageKey);
+  if (savedGameId) {
+    try {
+      const { game: savedGame } = await request(`/api/games/${encodeURIComponent(savedGameId)}`);
+      render(savedGame);
+    } catch (error) {
+      if (error.status !== 404) throw error;
+      if (runState.phase === 'active') {
+        await startHand();
+      } else {
+        renderControls();
+      }
+    }
+  } else if (runState.phase === 'active') {
+    await startHand();
+  } else {
+    renderControls();
+  }
+
+  if (runState.pendingStageClear) {
+    await syncStageClear();
+  }
 }
 
 async function enterGame(account) {
   currentPlayer = account.user;
+  currentStats = account.stats;
+  applyTotalExp(account.stats.totalExp);
   accountName.textContent = currentPlayer.username;
-  combatStorageKey = `blackjack-combat-state-${currentPlayer.id}`;
-  gameStorageKey = `blackjack-game-id-${currentPlayer.id}`;
-  authPanel.hidden = true;
-  gamePanel.hidden = false;
-  game ??= createBlackjackGame('game');
-  await loadGame();
+  runStorageKey = `dungeon-run-state-${currentPlayer.id}`;
+  gameStorageKey = `dungeon-game-id-${currentPlayer.id}`;
+  screens.show('lobby');
+  renderProgression();
+  dungeonLoadPromise = loadDungeon();
+  try {
+    await dungeonLoadPromise;
+  } catch (error) {
+    console.error(error);
+    status.textContent = `Could not load your dungeon: ${error.message}`;
+  } finally {
+    dungeonLoadPromise = null;
+  }
+}
+
+async function startGame() {
+  const startGameButton = document.querySelector('#start-game-button');
+  startGameButton.disabled = true;
+  try {
+    await dungeonLoadPromise;
+    screens.show('dungeon');
+    game ??= createBlackjackGame('game');
+    if (currentGame) render(currentGame);
+    if (!runState || ['failed', 'complete'].includes(runState.phase)) {
+      await beginDungeon();
+    } else if (runState.phase === 'active' && !currentGame) {
+      await startHand();
+    }
+  } finally {
+    startGameButton.disabled = false;
+  }
+}
+
+async function openLeaderboard() {
+  experienceLeaderboardList.replaceChildren();
+  monstersLeaderboardList.replaceChildren();
+  leaderboardStatus.textContent = 'Loading leaderboard…';
+
+  try {
+    const { experience, monstersDefeated } = await request('/api/player/leaderboard');
+    const renderEntries = (list, players, scoreLabel, emptyLabel) => {
+      if (players.length === 0) {
+        const emptyEntry = document.createElement('li');
+        emptyEntry.className = 'leaderboard-empty';
+        emptyEntry.textContent = emptyLabel;
+        list.append(emptyEntry);
+        return;
+      }
+      for (const player of players) {
+        const entry = document.createElement('li');
+        const username = document.createElement('strong');
+        const score = document.createElement('span');
+        username.textContent = player.username;
+        score.textContent = scoreLabel(player);
+        entry.append(username, score);
+        list.append(entry);
+      }
+    };
+
+    renderEntries(
+      experienceLeaderboardList,
+      experience,
+      (player) => `${player.totalExp.toLocaleString()} EXP`,
+      'No players have registered yet.',
+    );
+    renderEntries(
+      monstersLeaderboardList,
+      monstersDefeated,
+      (player) => player.monstersDefeated.toLocaleString(),
+      'No players have registered yet.',
+    );
+    leaderboardStatus.textContent = '';
+  } catch (error) {
+    console.error(error);
+    leaderboardStatus.textContent = `Could not load leaderboard: ${error.message}`;
+  }
 }
 
 async function takeAction(action) {
-  if (!currentGame || currentGame.status !== 'playing') {
+  if (!currentGame || currentGame.status !== 'playing' || runState?.phase !== 'active') {
     return;
   }
 
   hitButton.disabled = true;
   standButton.disabled = true;
-  status.textContent = action === 'hit' ? 'Dealing a card…' : 'Dealer’s turn…';
+  newGameButton.disabled = true;
+  status.textContent = action === 'hit' ? 'Dealing a card…' : 'The monster takes its turn…';
 
   try {
+    await new Promise((resolve) => setTimeout(resolve, cardActionDelayMs));
     const { game: updatedGame } = await request(`/api/games/${currentGame.id}/actions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -373,89 +560,73 @@ async function takeAction(action) {
   } catch (error) {
     console.error(error);
     status.textContent = `Could not update the hand: ${error.message}`;
-    hitButton.disabled = false;
-    standButton.disabled = false;
+    renderControls();
+  }
+}
+
+async function nextHand() {
+  if (runState?.phase === 'clearing') {
+    try {
+      await syncStageClear();
+    } catch (error) {
+      console.error(error);
+      status.textContent = `Could not save stage ${runState.stage}: ${error.message}. Retry the stage clear.`;
+    }
+    return;
+  }
+  if (runState?.phase !== 'active' || currentGame?.status === 'playing') {
+    return;
+  }
+  newGameButton.disabled = true;
+  try {
+    await startHand();
+  } catch (error) {
+    console.error(error);
+    status.textContent = `Could not start the next hand: ${error.message}`;
+    renderControls();
   }
 }
 
 hitButton.addEventListener('click', () => takeAction('hit'));
 standButton.addEventListener('click', () => takeAction('stand'));
-newGameButton.addEventListener('click', async () => {
-  newGameButton.disabled = true;
-  try {
-    if (combatState.playerHp === 0 || combatState.monsterHp === 0) {
-      combatState = {
-        ...combatState,
-        playerHp: maximumHealth(),
-        monsterHp: 100,
-        lastResolvedGameId: null,
-        lastRoundMessage: '',
-      };
-      saveCombatState();
-    }
-    await startGame();
-  } catch (error) {
-    console.error(error);
-    status.textContent = `Could not start a new game: ${error.message}`;
-  } finally {
-    newGameButton.disabled = false;
-  }
+newGameButton.addEventListener('click', nextHand);
+const characterLab = createCharacterLab({
+  getStats: () => currentStats,
+  setStats: (stats) => {
+    currentStats = stats;
+  },
+  getRunState: () => runState,
+  maximumHealth,
+  expRequiredForNextLevel,
+  applyTotalExp,
+  saveRunState,
+  renderGame: () => {
+    if (currentGame) render(currentGame);
+  },
+  setStatus: (message) => {
+    status.textContent = message;
+  },
 });
-
-for (const button of statButtons) {
-  button.addEventListener('click', () => allocateStat(button.dataset.stat));
-}
-
-authSwitch.addEventListener('click', () => {
-  showAuth(authMode === 'login' ? 'signup' : 'login');
+renderProgression = characterLab.renderProgression;
+const screens = createScreenController({
+  onStartGame: startGame,
+  onOpenLab: renderProgression,
+  onOpenLeaderboard: openLeaderboard,
 });
-
-authForm.addEventListener('submit', async (event) => {
-  event.preventDefault();
-  authSubmit.disabled = true;
-  authError.textContent = '';
-  try {
-    const path = authMode === 'signup' ? '/api/auth/signup' : '/api/auth/login';
-    const credentials = authMode === 'signup'
-      ? { username: authUsername.value, email: authEmail.value, password: authPassword.value }
-      : { identifier: authIdentifier.value, password: authPassword.value };
-    const account = await request(path, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(credentials),
-    });
-    authForm.reset();
-    await enterGame(account);
-  } catch (error) {
-    console.error(error);
-    authError.textContent = error.message;
-  } finally {
-    authSubmit.disabled = false;
-  }
-});
-
-signoutButton.addEventListener('click', async () => {
-  signoutButton.disabled = true;
-  try {
-    await request('/api/auth/logout', { method: 'POST' });
+const auth = createAuthController({
+  onAuthenticated: enterGame,
+  onSignedOut: () => {
     currentPlayer = null;
     currentGame = null;
+    runState = null;
     game?.destroy(true);
     game = null;
-    showAuth('login');
-  } catch (error) {
-    console.error(error);
+    runStorageKey = '';
+    gameStorageKey = '';
+  },
+  onSignOutError: (error) => {
     status.textContent = `Could not sign out: ${error.message}`;
-  } finally {
-    signoutButton.disabled = false;
-  }
+  },
 });
 
-request('/api/auth/me').then(enterGame).catch((error) => {
-  if (error.status === 401) {
-    showAuth();
-    return;
-  }
-  console.error(error);
-  authError.textContent = `Could not check your session: ${error.message}`;
-});
+auth.checkSession();
