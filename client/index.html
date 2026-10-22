@@ -10,10 +10,10 @@
     <main class="game-card">
       <header class="game-header">
         <div>
-          <p class="eyebrow">A 20-stage roguelike</p>
+          <p class="eyebrow">Choose your adventure</p>
           <h1>Dungeon Run</h1>
         </div>
-        <p class="rules">Fight through 19 mobs, then face the boss.<br />Choose one item after every stage.</p>
+        <p class="rules">Explore unique dungeons, defeat their mobs and bosses.<br />Choose one item after every stage.</p>
       </header>
 
       <section id="auth-panel" class="auth-panel" aria-labelledby="auth-title">
@@ -52,7 +52,7 @@
           <p class="lobby-level">Character level <strong id="lobby-level">Level 1</strong></p>
           <nav class="lobby-options" aria-label="Game menu">
             <button id="start-game-button" class="lobby-option lobby-option-primary" type="button">
-              <strong>Start a game</strong><span>Enter the dungeon</span>
+              <strong>Dungeons</strong><span>Browse mobs, bosses, and monster stats</span>
             </button>
             <button id="multiplayer-button" class="lobby-option" type="button">
               <strong>Multiplayer</strong><span>Coming soon</span>
@@ -69,11 +69,20 @@
           </nav>
         </section>
 
+        <section id="dungeon-catalog-screen" class="screen-panel" aria-labelledby="dungeon-catalog-title" hidden>
+          <button class="button button-quiet screen-back" type="button" data-back-to-lobby>Back to game menu</button>
+          <p class="eyebrow">Dungeon index</p>
+          <h2 id="dungeon-catalog-title">Choose a dungeon</h2>
+          <p class="screen-description">Each dungeon has its own mob encounters, boss, and monster attributes.</p>
+          <div id="dungeon-catalog" class="dungeon-catalog"></div>
+        </section>
+
         <section id="dungeon-screen" class="screen-panel" aria-label="Dungeon" hidden>
           <button class="button button-quiet screen-back" type="button" data-back-to-lobby>Back to game menu</button>
 
         <section class="dungeon-controls" aria-label="Dungeon run setup">
           <div>
+            <span id="active-dungeon-name"></span>
             <span>Suggested character level</span>
             <strong id="suggested-level">Level 1</strong>
           </div>
@@ -101,6 +110,7 @@
         <div id="game-actions" class="actions" hidden>
           <button id="hit-button" class="button button-primary" type="button" disabled>Hit</button>
           <button id="stand-button" class="button button-secondary" type="button" disabled>Stand</button>
+          <button id="double-down-button" class="button button-secondary" type="button" disabled>Double down</button>
           <button id="new-game-button" class="button button-quiet" type="button" disabled>Next hand</button>
         </div>
         </section>

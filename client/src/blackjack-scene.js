@@ -1,6 +1,5 @@
 import Phaser from 'phaser';
 import characterSpriteSheet from './assets/characters/main.png';
-import { dungeonStageCount } from '../../shared/dungeon-config.js';
 
 const suitSymbols = {
   clubs: '♣',
@@ -209,7 +208,7 @@ class BlackjackScene extends Phaser.Scene {
     this.handLayer.removeAll(true);
     this.addHealthBar('Hero', combatState.playerHp, combatState.playerMaxHp ?? 100, 42, 88, 0x91c977);
     this.addHealthBar(
-      combatState.boss ? 'BOSS' : 'MOB',
+      combatState.monsterName ?? (combatState.boss ? 'BOSS' : 'MOB'),
       combatState.monsterHp,
       combatState.monsterMaxHp ?? 40,
       596,
@@ -218,7 +217,7 @@ class BlackjackScene extends Phaser.Scene {
     );
     this.monsterSprite.setScale(combatState.boss ? 1.3 : 1);
     this.stageText.setText(
-      `DUNGEON · STAGE ${combatState.stage ?? 1} / ${combatState.stageCount ?? dungeonStageCount}${combatState.boss ? ' · BOSS' : ''}`,
+      `DUNGEON · STAGE ${combatState.stage ?? 1} / ${combatState.stageCount ?? 1}${combatState.boss ? ' · BOSS' : ''}`,
     );
     this.addHand('Dealer', game.dealerHand, game.dealerScore, 298, 262);
     this.addHand('You', game.playerHand, game.playerScore, 394, 358);

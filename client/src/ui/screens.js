@@ -1,6 +1,12 @@
-export function createScreenController({ onStartGame, onOpenLab, onOpenLeaderboard }) {
+export function createScreenController({
+  onQuitDungeon,
+  onOpenLab,
+  onOpenLeaderboard,
+  onOpenDungeons,
+}) {
   const screens = {
     lobby: document.querySelector('#lobby-screen'),
+    dungeonCatalog: document.querySelector('#dungeon-catalog-screen'),
     dungeon: document.querySelector('#dungeon-screen'),
     lab: document.querySelector('#lab-screen'),
     leaderboard: document.querySelector('#leaderboard-screen'),
@@ -17,7 +23,10 @@ export function createScreenController({ onStartGame, onOpenLab, onOpenLeaderboa
     gameActions.hidden = name !== 'dungeon';
   }
 
-  document.querySelector('#start-game-button').addEventListener('click', onStartGame);
+  document.querySelector('#start-game-button').addEventListener('click', () => {
+    show('dungeonCatalog');
+    onOpenDungeons();
+  });
   document.querySelector('#lab-button').addEventListener('click', () => {
     show('lab');
     onOpenLab();
@@ -37,7 +46,10 @@ export function createScreenController({ onStartGame, onOpenLab, onOpenLeaderboa
     show('placeholder');
   });
   document.querySelectorAll('[data-back-to-lobby]').forEach((button) => {
-    button.addEventListener('click', () => show('lobby'));
+    button.addEventListener('click', () => {
+      show('lobby');
+      if (screens.dungeon.contains(button)) onQuitDungeon();
+    });
   });
 
   return { show };

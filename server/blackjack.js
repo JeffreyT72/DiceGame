@@ -89,6 +89,10 @@ export function applyAction(state, action) {
     return { error: 'This hand is already complete.', status: 409 };
   }
 
+  if (state.doubledDown && action === 'hit') {
+    return { error: 'You cannot hit after doubling down.', status: 409 };
+  }
+
   if (action === 'hit') {
     state.playerHand.push(state.deck.pop());
     const score = handValue(state.playerHand);
@@ -98,10 +102,22 @@ export function applyAction(state, action) {
     } else if (score === 21) {
       dealerTurn(state);
     }
+  } else if (action === 'double_down') {
+    if (state.playerHand.length !== 2) {
+      return { error: 'You can only double down on your first turn.', status: 409 };
+    }
+    state.doubledDown = true;
+    state.playerHand.push(state.deck.pop());
+    if (handValue(state.playerHand) > 21) {
+      state.status = 'complete';
+      state.outcome = 'player_bust';
+    } else {
+      dealerTurn(state);
+    }
   } else if (action === 'stand') {
     dealerTurn(state);
   } else {
-    return { error: 'Action must be "hit" or "stand".', status: 400 };
+    return { error: 'Action must be "hit", "stand", or "double_down".', status: 400 };
   }
 
   return { state };
@@ -121,6 +137,7 @@ export function toPublicGame(id, state, createdAt, updatedAt) {
     id,
     status: state.status,
     outcome: state.outcome,
+    doubledDown: Boolean(state.doubledDown),
     playerHand: state.playerHand.map(({ rank, suit }) => ({ rank, suit })),
     dealerHand: dealerHand.map((card) => (
       card.hidden ? { hidden: true } : { rank: card.rank, suit: card.suit }

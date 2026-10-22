@@ -3,14 +3,15 @@ import { createBlackjackGame } from './blackjack-scene.js';
 import { request } from './services/api.js';
 import { createAuthController } from './ui/auth.js';
 import { createCharacterLab } from './ui/character-lab.js';
+import { createDungeonCatalog } from './ui/dungeon-catalog.js';
 import { createScreenController } from './ui/screens.js';
 import { chooseItemOptions, getItem, getItemEffects } from './items.js';
-import { dungeonStageCount } from '../../shared/dungeon-config.js';
+import {
+  dungeons,
+  getDungeonMonster,
+  getDungeonStageCount,
+} from '../../shared/dungeon-config.js';
 
-const stageCount = dungeonStageCount;
-const mobHealth = 20;
-const bossHealth = 100;
-const dungeonExpReward = 1000;
 const cardActionDelayMs = 200;
 const winningOutcomes = ['player_blackjack', 'player_win', 'dealer_bust'];
 const losingOutcomes = ['dealer_blackjack', 'player_bust', 'dealer_win'];
@@ -28,15 +29,13 @@ let currentStats = {
   availableStatPoints: 0,
 };
 let runState = null;
-let runStorageKey = '';
-let gameStorageKey = '';
 let resolvingStage = false;
 let startingHand = false;
-let dungeonLoadPromise = null;
 let renderProgression;
 
 const hitButton = document.querySelector('#hit-button');
 const standButton = document.querySelector('#stand-button');
+const doubleDownButton = document.querySelector('#double-down-button');
 const newGameButton = document.querySelector('#new-game-button');
 const suggestedLevel = document.querySelector('#suggested-level');
 const status = document.querySelector('#status');
@@ -63,25 +62,20 @@ function suggestedCharacterLevel() {
   return Math.min(10, Math.max(1, currentStats.level ?? 1));
 }
 
-function initialRunState(dungeon) {
+function initialRunState(dungeon, run) {
   return {
-    dungeonId: dungeon.id,
-    suggestedLevel: dungeon.suggestedLevel,
+    dungeonId: run.id,
+    dungeon,
+    suggestedLevel: run.suggestedLevel,
     stage: 1,
     playerHp: baseMaximumHealth(),
-    monsterHp: mobHealth,
+    monsterHp: getDungeonMonster(dungeon, 1).hp,
     lastResolvedGameId: null,
     lastRoundMessage: '',
     phase: 'active',
     pendingStageClear: null,
     items: [],
   };
-}
-
-function saveRunState() {
-  if (runStorageKey && runState) {
-    localStorage.setItem(runStorageKey, JSON.stringify(runState));
-  }
 }
 
 function applyTotalExp(totalExp) {
@@ -96,8 +90,16 @@ function applyTotalExp(totalExp) {
   currentStats.expIntoLevel = remainingExp;
 }
 
-function maximumMonsterHealth(stage) {
-  return stage === stageCount ? bossHealth : mobHealth;
+function currentMonster() {
+  return runState ? getDungeonMonster(runState.dungeon, runState.stage) : null;
+}
+
+function currentStageCount() {
+  return runState ? getDungeonStageCount(runState.dungeon) : getDungeonStageCount(dungeons[0]);
+}
+
+function maximumMonsterHealth() {
+  return currentMonster()?.hp ?? 0;
 }
 
 function outcomeMessage(outcome) {
@@ -125,7 +127,11 @@ function resolveCombatRound(gameState) {
 
   if (winningOutcomes.includes(gameState.outcome)) {
     const itemEffects = getItemEffects(runState.items);
-    const baseDamage = gameState.playerScore + currentStats.strength + itemEffects.attack;
+    const baseDamage = Math.max(
+      1,
+      gameState.playerScore + currentStats.strength + itemEffects.attack - currentMonster().defense,
+    )
+      * (gameState.doubledDown ? 2 : 1);
     const criticalChance = Math.min(100, currentStats.luck * 3 + itemEffects.criticalChance * 100);
     const criticalHit = Math.random() * 100 < criticalChance;
     const damage = criticalHit ? Math.floor(baseDamage * 1.5) : baseDamage;
@@ -138,38 +144,45 @@ function resolveCombatRound(gameState) {
     const hitMessage = criticalHit
       ? `Critical hit! You deal ${damage} damage.`
       : `You deal ${damage} damage.`;
+    const doubleDownMessage = gameState.doubledDown ? ' Double down doubles your attack!' : '';
     runState.lastRoundMessage = healing > 0
-      ? `${hitMessage} The necklace restores ${healing} HP.`
-      : hitMessage;
+      ? `${hitMessage}${doubleDownMessage} The necklace restores ${healing} HP.`
+      : `${hitMessage}${doubleDownMessage}`;
     if (runState.monsterHp === 0) {
       runState.phase = 'clearing';
       runState.pendingStageClear = { stage: runState.stage, gameId: gameState.id };
     }
   } else if (losingOutcomes.includes(gameState.outcome)) {
     const itemEffects = getItemEffects(runState.items);
-    const baseDamage = gameState.dealerScore;
-    const damage = Math.floor(baseDamage * (1 - itemEffects.damageReduction));
+    const baseDamage = gameState.dealerScore + currentMonster().attackPower;
+    const damage = Math.floor(baseDamage * (1 - itemEffects.damageReduction))
+      * (gameState.doubledDown ? 2 : 1);
     const dodgeChance = Math.min(100, currentStats.agility * 5 + itemEffects.dodgeChance * 100);
     if (Math.random() * 100 < dodgeChance) {
-      runState.lastRoundMessage = `You dodge the monster's ${damage}-damage attack.`;
+      runState.lastRoundMessage = `You dodge the monster's ${damage}-damage attack.${gameState.doubledDown ? ' Double down doubles the damage you would take.' : ''}`;
     } else {
       runState.playerHp = Math.max(0, runState.playerHp - damage);
-      runState.lastRoundMessage = `The monster deals ${damage} damage to you.`;
+      runState.lastRoundMessage = gameState.doubledDown
+        ? `The monster deals ${damage} damage to you. Double down doubles the damage you take.`
+        : `The monster deals ${damage} damage to you.`;
     }
     if (runState.playerHp === 0) {
       runState.phase = 'failed';
       runState.items = [];
+      removeDungeonSession(runState.dungeonId, gameState.id).catch((error) => {
+        console.error(error);
+        status.textContent = `You were defeated on stage ${runState.stage}. Could not remove the dungeon session: ${error.message}`;
+      });
     }
   } else {
     runState.lastRoundMessage = 'No damage dealt.';
   }
 
   runState.lastResolvedGameId = gameState.id;
-  saveRunState();
   if (runState.pendingStageClear) {
     syncStageClear().catch((error) => {
       console.error(error);
-      status.textContent = `Could not save stage ${runState.stage}: ${error.message}. Retry the stage clear.`;
+      status.textContent = `Could not finish stage ${runState.stage}: ${error.message}. Retry the stage clear.`;
       renderControls();
     });
   }
@@ -178,13 +191,16 @@ function resolveCombatRound(gameState) {
 function render(gameState) {
   currentGame = gameState;
   resolveCombatRound(gameState);
-  const boss = runState?.stage === stageCount;
+  const monster = currentMonster();
+  const stageCount = currentStageCount();
+  const boss = Boolean(runState && runState.stage === stageCount);
   if (game) {
-    game.scene.getScene('blackjack').renderGame(gameState, {
+    game.scene.getScene('blackjack')?.renderGame(gameState, {
       playerHp: runState?.playerHp ?? maximumHealth(),
       playerMaxHp: maximumHealth(),
-      monsterHp: runState?.monsterHp ?? mobHealth,
-      monsterMaxHp: runState ? maximumMonsterHealth(runState.stage) : mobHealth,
+      monsterHp: runState?.monsterHp ?? monster?.hp ?? 0,
+      monsterMaxHp: maximumMonsterHealth(),
+      monsterName: monster?.name ?? 'Monster',
       stage: runState?.stage ?? 1,
       stageCount,
       boss,
@@ -194,17 +210,17 @@ function render(gameState) {
   renderControls();
   table.setAttribute(
     'aria-label',
-    `Stage ${runState?.stage ?? 1} of ${stageCount}${boss ? ', boss' : ''}. Hero health ${runState?.playerHp ?? maximumHealth()} of ${maximumHealth()}. Monster health ${runState?.monsterHp ?? mobHealth}.`,
+    `Stage ${runState?.stage ?? 1} of ${stageCount}${boss ? ', boss' : ''}. Hero health ${runState?.playerHp ?? maximumHealth()} of ${maximumHealth()}. ${monster?.name ?? 'Monster'} health ${runState?.monsterHp ?? monster?.hp ?? 0}.`,
   );
 
   if (runState?.phase === 'failed') {
-    status.textContent = `You were defeated on stage ${runState.stage}. No EXP is awarded; start a new dungeon to try again.`;
+    status.textContent = `You were defeated in ${runState.dungeon.name} on stage ${runState.stage}. No EXP is awarded; start a new dungeon to try again.`;
   } else if (runState?.phase === 'complete') {
-    status.textContent = `Dungeon cleared! You earned ${dungeonExpReward} EXP.`;
+    status.textContent = `Dungeon cleared! You earned ${runState.dungeon.rewardExp} EXP.`;
   } else if (runState?.phase === 'loot') {
     status.textContent = `Stage ${runState.stage} cleared. Choose one item to continue.`;
   } else if (runState?.phase === 'clearing') {
-    status.textContent = `Stage ${runState.stage} defeated. Saving your progress…`;
+    status.textContent = `Stage ${runState.stage} defeated. Resolving the stage…`;
   } else {
     const roundMessage = gameState.status === 'complete'
       && gameState.id === runState?.lastResolvedGameId
@@ -218,8 +234,10 @@ function renderControls() {
   const active = runState?.phase === 'active';
   const handInProgress = currentGame?.status === 'playing';
   const stageComplete = runState?.phase === 'loot';
+  const canDoubleDown = currentGame?.playerHand.length === 2 && !currentGame?.doubledDown;
   hitButton.disabled = startingHand || !active || !handInProgress;
   standButton.disabled = startingHand || !active || !handInProgress;
+  doubleDownButton.disabled = startingHand || !active || !handInProgress || !canDoubleDown;
   newGameButton.disabled = startingHand || resolvingStage
     || (runState?.phase === 'clearing' ? false : !active || handInProgress);
   suggestedLevel.textContent = `Level ${runState?.suggestedLevel ?? suggestedCharacterLevel()}`;
@@ -233,14 +251,17 @@ function renderControls() {
       : 'Next hand';
 
   if (!runState) {
+    document.querySelector('#active-dungeon-name').textContent = '';
     dungeonProgress.textContent = 'Your next run is ready when you are.';
   } else {
+    const stageCount = currentStageCount();
     const label = runState.stage === stageCount ? 'Boss' : 'Mob';
     dungeonProgress.textContent = runState.phase === 'complete'
-      ? 'Dungeon cleared!'
+      ? `${runState.dungeon.name} cleared!`
       : runState.phase === 'failed'
-        ? `Run ended · Defeated on stage ${runState.stage} of ${stageCount}`
-        : `Stage ${runState.stage} of ${stageCount} · ${label} · ${runState.items.length} item${runState.items.length === 1 ? '' : 's'} collected`;
+        ? `${runState.dungeon.name} · Defeated on stage ${runState.stage} of ${stageCount}`
+        : `${runState.dungeon.name} · Stage ${runState.stage} of ${stageCount} · ${label} · ${runState.items.length} item${runState.items.length === 1 ? '' : 's'} collected`;
+    document.querySelector('#active-dungeon-name').textContent = runState.dungeon.name;
   }
 }
 
@@ -287,10 +308,7 @@ function renderLootChoices() {
 
 function clearCurrentHand() {
   currentGame = null;
-  if (gameStorageKey) {
-    localStorage.removeItem(gameStorageKey);
-  }
-  game?.scene.getScene('blackjack').clearHand();
+  game?.scene.getScene('blackjack')?.clearHand();
 }
 
 async function startHand() {
@@ -298,11 +316,11 @@ async function startHand() {
     return;
   }
   startingHand = true;
-  clearCurrentHand();
-  renderControls();
   try {
+    clearCurrentHand();
+    renderControls();
+    status.textContent = 'Dealing your opening hand…';
     const { game: newGame } = await request('/api/games', { method: 'POST' });
-    localStorage.setItem(gameStorageKey, newGame.id);
     render(newGame);
   } finally {
     startingHand = false;
@@ -327,17 +345,20 @@ async function syncStageClear() {
       currentStats = result.stats;
       applyTotalExp(result.stats.totalExp);
     }
+    if (stage === currentStageCount()) {
+      await removeDungeonSession(runState.dungeonId, currentGame?.id);
+    }
     runState.pendingStageClear = null;
-    runState.phase = stage === stageCount ? 'complete' : 'loot';
-    runState.lootChoices = stage === stageCount ? [] : chooseItemOptions();
-    if (stage === stageCount) {
+    const finalStage = stage === currentStageCount();
+    runState.phase = finalStage ? 'complete' : 'loot';
+    runState.lootChoices = finalStage ? [] : chooseItemOptions();
+    if (finalStage) {
       runState.items = [];
       runState.playerHp = Math.min(runState.playerHp, baseMaximumHealth());
     }
-    saveRunState();
     renderProgression();
-    if (stage === stageCount) {
-      status.textContent = `Dungeon cleared! You earned ${dungeonExpReward} EXP.`;
+    if (finalStage) {
+      status.textContent = `Dungeon cleared! You earned ${runState.dungeon.rewardExp} EXP.`;
     } else {
       status.textContent = `Stage ${stage} cleared. Choose one item to continue.`;
     }
@@ -347,17 +368,27 @@ async function syncStageClear() {
   }
 }
 
-async function beginDungeon() {
-  clearCurrentHand();
+async function removeDungeonSession(dungeonId, gameId) {
+  await request(`/api/dungeons/${encodeURIComponent(dungeonId)}`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ gameId }),
+  });
+}
+
+async function beginDungeon(selectedDungeon) {
   renderControls();
+  status.textContent = 'Entering the dungeon…';
   try {
     const { dungeon } = await request('/api/dungeons', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ suggestedLevel: suggestedCharacterLevel() }),
+      body: JSON.stringify({
+        dungeonKey: selectedDungeon.id,
+        suggestedLevel: suggestedCharacterLevel(),
+      }),
     });
-    runState = initialRunState(dungeon);
-    saveRunState();
+    runState = initialRunState(selectedDungeon, dungeon);
     await startHand();
   } catch (error) {
     console.error(error);
@@ -386,10 +417,9 @@ async function chooseItem(itemId) {
   }
   runState.lootChoices = [];
   runState.stage += 1;
-  runState.monsterHp = maximumMonsterHealth(runState.stage);
+  runState.monsterHp = maximumMonsterHealth();
   runState.phase = 'active';
   runState.lastRoundMessage = '';
-  saveRunState();
   try {
     await startHand();
   } catch (error) {
@@ -402,123 +432,51 @@ async function chooseItem(itemId) {
   }
 }
 
-async function loadDungeon() {
-  const storedRun = localStorage.getItem(runStorageKey);
-  if (!storedRun) {
-    runState = null;
-    currentGame = null;
-    renderControls();
-    status.textContent = 'Your next run is ready when you are.';
-    return;
-  }
-
-  const parsed = JSON.parse(storedRun);
-  const savedMaxHealth = baseMaximumHealth()
-    + getItemEffects(Array.isArray(parsed.items) ? parsed.items : []).maxHealth;
-  if (
-    typeof parsed.dungeonId !== 'string'
-    || !Number.isInteger(parsed.stage)
-    || parsed.stage < 1
-    || parsed.stage > stageCount
-    || !Number.isInteger(parsed.playerHp)
-    || parsed.playerHp < 0
-    || parsed.playerHp > savedMaxHealth
-    || !Number.isInteger(parsed.monsterHp)
-    || parsed.monsterHp < 0
-    || parsed.monsterHp > bossHealth
-    || !['active', 'clearing', 'loot', 'failed', 'complete'].includes(parsed.phase)
-    || !Array.isArray(parsed.items)
-  ) {
-    throw new Error('Saved dungeon progress is invalid. Clear this site’s local storage to start fresh.');
-  }
-  runState = parsed;
-  let dungeon;
-  try {
-    ({ dungeon } = await request(`/api/dungeons/${encodeURIComponent(runState.dungeonId)}`));
-  } catch (error) {
-    if (error.status !== 404) throw error;
-    localStorage.removeItem(runStorageKey);
-    localStorage.removeItem(gameStorageKey);
-    runState = null;
-    currentGame = null;
-    renderProgression();
-    renderControls();
-    status.textContent = 'Your saved dungeon could not be found. Start a new dungeon to continue.';
-    return;
-  }
-  if (dungeon.completed) {
-    runState.phase = 'complete';
-    runState.items = [];
-    runState.lootChoices = [];
-    runState.playerHp = Math.min(runState.playerHp, baseMaximumHealth());
-    runState.stage = stageCount;
-    runState.pendingStageClear = null;
-  }
-  runState.suggestedLevel = dungeon.suggestedLevel;
-  saveRunState();
-  renderControls();
-
-  const savedGameId = localStorage.getItem(gameStorageKey);
-  if (savedGameId) {
-    try {
-      const { game: savedGame } = await request(`/api/games/${encodeURIComponent(savedGameId)}`);
-      render(savedGame);
-    } catch (error) {
-      if (error.status !== 404) throw error;
-      if (runState.phase === 'active') {
-        await startHand();
-      } else {
-        renderControls();
-      }
-    }
-  } else if (runState.phase === 'active') {
-    await startHand();
-  } else {
-    renderControls();
-  }
-
-  if (runState.pendingStageClear) {
-    await syncStageClear();
-  }
-}
-
 async function enterGame(account) {
   currentPlayer = account.user;
   currentStats = account.stats;
   applyTotalExp(account.stats.totalExp);
   accountName.textContent = currentPlayer.username;
-  runStorageKey = `dungeon-run-state-${currentPlayer.id}`;
-  gameStorageKey = `dungeon-game-id-${currentPlayer.id}`;
   screens.show('lobby');
   renderProgression();
-  dungeonLoadPromise = loadDungeon();
+}
+
+async function startGame(selectedDungeon) {
+  const startGameButton = document.querySelector('#start-game-button');
+  const quitButton = document.querySelector('#dungeon-screen [data-back-to-lobby]');
+  startGameButton.disabled = true;
+  quitButton.disabled = true;
   try {
-    await dungeonLoadPromise;
-  } catch (error) {
-    console.error(error);
-    status.textContent = `Could not load your dungeon: ${error.message}`;
+    screens.show('dungeon');
+    game ??= createBlackjackGame('game');
+    await beginDungeon(selectedDungeon);
   } finally {
-    dungeonLoadPromise = null;
+    startGameButton.disabled = false;
+    quitButton.disabled = false;
   }
 }
 
-async function startGame() {
-  const startGameButton = document.querySelector('#start-game-button');
-  startGameButton.disabled = true;
-  try {
-    await dungeonLoadPromise;
-    screens.show('dungeon');
-    game ??= createBlackjackGame('game');
-    if (!runState || ['failed', 'complete'].includes(runState.phase)) {
-      await beginDungeon();
-    } else if (currentGame) {
-      render(currentGame);
-    } else if (runState.phase === 'active' && !currentGame) {
-      await startHand();
+async function quitDungeon() {
+  const dungeonId = runState?.dungeonId;
+  const gameId = currentGame?.id;
+  if (dungeonId) {
+    const startGameButton = document.querySelector('#start-game-button');
+    startGameButton.disabled = true;
+    try {
+      await removeDungeonSession(dungeonId, gameId);
+    } catch (error) {
+      console.error(error);
+      status.textContent = `Could not remove the dungeon session: ${error.message}`;
+      screens.show('dungeon');
+      startGameButton.disabled = false;
+      return;
     }
-  } finally {
     startGameButton.disabled = false;
   }
+  currentGame = null;
+  runState = null;
+  clearCurrentHand();
+  renderControls();
 }
 
 async function openLeaderboard() {
@@ -573,8 +531,13 @@ async function takeAction(action) {
 
   hitButton.disabled = true;
   standButton.disabled = true;
+  doubleDownButton.disabled = true;
   newGameButton.disabled = true;
-  status.textContent = action === 'hit' ? 'Dealing a card…' : 'The monster takes its turn…';
+  status.textContent = action === 'hit'
+    ? 'Dealing a card…'
+    : action === 'double_down'
+      ? 'Doubling down and dealing one card…'
+      : 'The monster takes its turn…';
 
   try {
     await new Promise((resolve) => setTimeout(resolve, cardActionDelayMs));
@@ -597,7 +560,7 @@ async function nextHand() {
       await syncStageClear();
     } catch (error) {
       console.error(error);
-      status.textContent = `Could not save stage ${runState.stage}: ${error.message}. Retry the stage clear.`;
+      status.textContent = `Could not finish stage ${runState.stage}: ${error.message}. Retry the stage clear.`;
     }
     return;
   }
@@ -616,6 +579,7 @@ async function nextHand() {
 
 hitButton.addEventListener('click', () => takeAction('hit'));
 standButton.addEventListener('click', () => takeAction('stand'));
+doubleDownButton.addEventListener('click', () => takeAction('double_down'));
 newGameButton.addEventListener('click', nextHand);
 const characterLab = createCharacterLab({
   getStats: () => currentStats,
@@ -626,7 +590,6 @@ const characterLab = createCharacterLab({
   maximumHealth,
   expRequiredForNextLevel,
   applyTotalExp,
-  saveRunState,
   renderGame: () => {
     if (currentGame) render(currentGame);
   },
@@ -636,20 +599,28 @@ const characterLab = createCharacterLab({
 });
 renderProgression = characterLab.renderProgression;
 const screens = createScreenController({
-  onStartGame: startGame,
+  onQuitDungeon: quitDungeon,
   onOpenLab: renderProgression,
   onOpenLeaderboard: openLeaderboard,
+  onOpenDungeons: () => createDungeonCatalog(
+    document.querySelector('#dungeon-catalog'),
+    dungeons,
+    startGame,
+  ),
 });
 const auth = createAuthController({
   onAuthenticated: enterGame,
+  onBeforeSignOut: async () => {
+    if (runState?.dungeonId) {
+      await removeDungeonSession(runState.dungeonId, currentGame?.id);
+    }
+  },
   onSignedOut: () => {
     currentPlayer = null;
     currentGame = null;
     runState = null;
     game?.destroy(true);
     game = null;
-    runStorageKey = '';
-    gameStorageKey = '';
   },
   onSignOutError: (error) => {
     status.textContent = `Could not sign out: ${error.message}`;
@@ -657,3 +628,15 @@ const auth = createAuthController({
 });
 
 auth.checkSession();
+
+window.addEventListener('pagehide', () => {
+  if (!runState?.dungeonId) return;
+  fetch(`/api/dungeons/${encodeURIComponent(runState.dungeonId)}`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ gameId: currentGame?.id }),
+    keepalive: true,
+  }).then((response) => {
+    if (!response.ok) console.error(`Could not remove the dungeon session (${response.status}).`);
+  }).catch((error) => console.error(error));
+});

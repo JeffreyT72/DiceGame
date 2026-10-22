@@ -17,7 +17,11 @@ import {
   newGameId,
   toPublicGame,
 } from './blackjack.js';
-import { dungeonStageCount } from '../shared/dungeon-config.js';
+import {
+  dungeons,
+  getDungeon,
+  getDungeonStageCount,
+} from '../shared/dungeon-config.js';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const databasePath = resolve(projectRoot, process.env.DATABASE_PATH ?? 'data/blackjack.sqlite');
@@ -164,6 +168,15 @@ for (const column of ['strength', 'agility', 'constitution', 'luck']) {
 playerDatabase.pragma('foreign_keys = ON');
 playerDatabase.prepare('DELETE FROM player_sessions WHERE expires_at <= ?')
   .run(new Date().toISOString());
+const existingDungeonRunColumns = new Set(
+  playerDatabase.prepare('PRAGMA table_info(dungeon_runs)').all().map(({ name }) => name),
+);
+if (!existingDungeonRunColumns.has('dungeon_key')) {
+  playerDatabase.exec(`
+    ALTER TABLE dungeon_runs
+    ADD COLUMN dungeon_key TEXT NOT NULL DEFAULT 'verdant-hollow'
+  `);
+}
 
 const app = express();
 const port = Number(process.env.PORT ?? 3000);
@@ -388,41 +401,62 @@ app.post('/api/player/stats/allocate', requirePlayer, (request, response) => {
 
 app.post('/api/dungeons', requirePlayer, (request, response) => {
   const suggestedLevel = request.body?.suggestedLevel;
+  const dungeonKey = request.body?.dungeonKey ?? dungeons[0].id;
+  const selectedDungeon = getDungeon(dungeonKey);
   if (!Number.isInteger(suggestedLevel) || suggestedLevel < 1 || suggestedLevel > 10) {
     return response.status(400).json({ error: 'Suggested character level must be from 1 to 10.' });
+  }
+  if (!selectedDungeon) {
+    return response.status(400).json({ error: 'A valid dungeon must be selected.' });
+  }
+
+  const previousRuns = playerDatabase.prepare(`
+    SELECT id FROM dungeon_runs WHERE user_id = ?
+  `).all(request.playerId);
+  for (const { id: previousRunId } of previousRuns) {
+    removeDungeonSession(previousRunId, request.playerId);
   }
 
   const id = randomUUID();
   playerDatabase.prepare(`
-    INSERT INTO dungeon_runs (id, user_id, suggested_level) VALUES (?, ?, ?)
-  `).run(id, request.playerId, suggestedLevel);
+    INSERT INTO dungeon_runs (id, user_id, suggested_level, dungeon_key) VALUES (?, ?, ?, ?)
+  `).run(id, request.playerId, suggestedLevel, selectedDungeon.id);
 
   response.status(201).json({ dungeon: dungeonRun(id, request.playerId) });
 });
 
-app.get('/api/dungeons/:id', requirePlayer, (request, response) => {
-  const dungeon = dungeonRun(request.params.id, request.playerId);
-  if (!dungeon) {
-    return response.status(404).json({ error: 'Dungeon run not found.' });
+app.delete('/api/dungeons/:id', requirePlayer, (request, response) => {
+  const gameId = request.body?.gameId;
+  if (gameId !== undefined && gameId !== null && (typeof gameId !== 'string' || gameId.length > 128)) {
+    return response.status(400).json({ error: 'A valid battle ID is required.' });
   }
-  response.json({ dungeon });
+  removeDungeonSession(request.params.id, request.playerId, gameId);
+  response.status(204).end();
 });
 
 app.post('/api/dungeons/:id/clear-stage', requirePlayer, (request, response) => {
   const { stage, gameId } = request.body ?? {};
-  if (!Number.isInteger(stage) || stage < 1 || stage > dungeonStageCount) {
-    return response.status(400).json({ error: `Stage must be between 1 and ${dungeonStageCount}.` });
+  if (!Number.isInteger(stage) || stage < 1) {
+    return response.status(400).json({ error: 'Stage must be a positive whole number.' });
   }
   if (typeof gameId !== 'string' || !gameId || gameId.length > 128) {
     return response.status(400).json({ error: 'A valid completed battle ID is required.' });
   }
 
   const run = playerDatabase.prepare(`
-    SELECT id, cleared_stages AS clearedStages, completed
+    SELECT id, dungeon_key AS dungeonKey, cleared_stages AS clearedStages, completed
     FROM dungeon_runs WHERE id = ? AND user_id = ?
   `).get(request.params.id, request.playerId);
   if (!run) {
     return response.status(404).json({ error: 'Dungeon run not found.' });
+  }
+  const selectedDungeon = getDungeon(run.dungeonKey);
+  if (!selectedDungeon) {
+    return response.status(500).json({ error: 'The dungeon configuration for this run is unavailable.' });
+  }
+  const stageCount = getDungeonStageCount(selectedDungeon);
+  if (stage > stageCount) {
+    return response.status(400).json({ error: `Stage must be between 1 and ${stageCount}.` });
   }
   if (stage <= run.clearedStages) {
     return response.json({
@@ -460,16 +494,16 @@ app.post('/api/dungeons/:id/clear-stage', requirePlayer, (request, response) => 
       UPDATE dungeon_runs
       SET cleared_stages = ?, completed = ?, updated_at = datetime('now')
       WHERE id = ? AND user_id = ?
-    `).run(stage, Number(stage === dungeonStageCount), request.params.id, request.playerId);
+    `).run(stage, Number(stage === stageCount), request.params.id, request.playerId);
 
-    if (stage === dungeonStageCount) {
+    if (stage === stageCount) {
       playerDatabase.prepare(`
         UPDATE player_stats
-        SET total_exp = total_exp + 1000,
+        SET total_exp = total_exp + ?,
           monsters_defeated = monsters_defeated + ?,
           updated_at = datetime('now')
         WHERE user_id = ?
-      `).run(dungeonStageCount, request.playerId);
+      `).run(selectedDungeon.rewardExp, stageCount, request.playerId);
     }
   });
   clearStage();
@@ -496,7 +530,7 @@ function playerStats(userId) {
 
 function dungeonRun(id, userId) {
   const run = playerDatabase.prepare(`
-    SELECT id, suggested_level AS suggestedLevel,
+    SELECT id, dungeon_key AS dungeonKey, suggested_level AS suggestedLevel,
       cleared_stages AS clearedStages, completed
     FROM dungeon_runs WHERE id = ? AND user_id = ?
   `).get(id, userId);
@@ -504,6 +538,29 @@ function dungeonRun(id, userId) {
     return null;
   }
   return { ...run, completed: Boolean(run.completed) };
+}
+
+function removeDungeonSession(id, userId, activeGameId) {
+  const run = playerDatabase.prepare(`
+    SELECT id FROM dungeon_runs WHERE id = ? AND user_id = ?
+  `).get(id, userId);
+  if (!run) return;
+
+  const clearedGames = playerDatabase.prepare(`
+    SELECT game_id AS gameId FROM dungeon_stage_clears WHERE dungeon_id = ?
+  `).all(id);
+  const deleteGame = database.prepare('DELETE FROM blackjack_games WHERE id = ?');
+  const removeSession = playerDatabase.transaction(() => {
+    playerDatabase.prepare('DELETE FROM dungeon_runs WHERE id = ? AND user_id = ?')
+      .run(id, userId);
+    for (const { gameId } of clearedGames) {
+      deleteGame.run(gameId);
+    }
+    if (activeGameId) {
+      deleteGame.run(activeGameId);
+    }
+  });
+  removeSession();
 }
 
 function getLevel(totalExp) {
@@ -534,17 +591,6 @@ app.post('/api/games', (_request, response) => {
 
   response.status(201).json({
     game: toPublicGame(game.id, state, game.createdAt, game.updatedAt),
-  });
-});
-
-app.get('/api/games/:id', (request, response) => {
-  const game = findGame(request.params.id);
-  if (!game) {
-    return response.status(404).json({ error: 'Game not found.' });
-  }
-
-  response.json({
-    game: toPublicGame(game.id, JSON.parse(game.state), game.createdAt, game.updatedAt),
   });
 });
 

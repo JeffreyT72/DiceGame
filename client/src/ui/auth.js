@@ -1,6 +1,11 @@
 import { request } from '../services/api.js';
 
-export function createAuthController({ onAuthenticated, onSignedOut, onSignOutError }) {
+export function createAuthController({
+  onAuthenticated,
+  onBeforeSignOut = async () => {},
+  onSignedOut,
+  onSignOutError,
+}) {
   const authPanel = document.querySelector('#auth-panel');
   const authForm = document.querySelector('#auth-form');
   const authTitle = document.querySelector('#auth-title');
@@ -68,6 +73,7 @@ export function createAuthController({ onAuthenticated, onSignedOut, onSignOutEr
   signoutButton.addEventListener('click', async () => {
     signoutButton.disabled = true;
     try {
+      await onBeforeSignOut();
       await request('/api/auth/logout', { method: 'POST' });
       onSignedOut();
       showAuth();

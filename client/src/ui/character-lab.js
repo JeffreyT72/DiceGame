@@ -7,7 +7,6 @@ export function createCharacterLab({
   maximumHealth,
   expRequiredForNextLevel,
   applyTotalExp,
-  saveRunState,
   renderGame,
   setStatus,
 }) {
@@ -59,7 +58,6 @@ export function createCharacterLab({
       const runState = getRunState();
       if (stat === 'constitution' && runState) {
         runState.playerHp = Math.min(maximumHealth(), runState.playerHp + 20);
-        saveRunState();
       }
       renderProgression();
       renderGame();
