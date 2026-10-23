@@ -21,6 +21,7 @@ import {
   dungeons,
   getDungeon,
   getDungeonStageCount,
+  meetsDungeonLevelRequirement,
 } from '../shared/dungeon-config.js';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -408,6 +409,15 @@ app.post('/api/dungeons', requirePlayer, (request, response) => {
   }
   if (!selectedDungeon) {
     return response.status(400).json({ error: 'A valid dungeon must be selected.' });
+  }
+  const stats = playerStats(request.playerId);
+  if (!stats) {
+    return response.status(404).json({ error: 'Player stats could not be found.' });
+  }
+  if (!meetsDungeonLevelRequirement(selectedDungeon, stats.level)) {
+    return response.status(403).json({
+      error: `You must be at least level ${selectedDungeon.levelRequirement} to enter this dungeon.`,
+    });
   }
 
   const previousRuns = playerDatabase.prepare(`

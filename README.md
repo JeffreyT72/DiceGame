@@ -27,8 +27,8 @@ The server serves the built frontend and API from <http://localhost:3000>.
 
 ## Dungeon rules
 
-- The read-only suggested character level follows your current level (capped at level 10) and does not restrict entry.
-- Choose a dungeon from the Dungeons page. Each definition in `shared/dungeon-config.js` contains its own ordered mob encounters, boss, and EXP reward; the run stage count is the number of mobs plus the boss.
+- The suggested character level follows your current level (capped at level 10). Each dungeon's `levelRequirement` sets the minimum actual character level required to enter; the suggested level does not override that requirement.
+- Choose a dungeon from the Dungeons page. Each definition in `shared/dungeon-config.js` contains its configured stage count, minimum character level, mob encounters, boss, and EXP reward. Mob encounters repeat as needed until the final configured stage, which uses the boss. The server enforces the minimum character level.
 - Every mob and boss defines HP, attack power, and defense. HP sets monster health, attack power adds to its blackjack attack, and defense reduces damage from player attacks (to a minimum of 1).
 - Combat uses blackjack hands. On the initial two-card turn, the player can double down to draw exactly one card and end their turn. If the hand wins, the attack deals double damage; if it loses, the player takes double damage. Luck can increase a winning attack to 1.5x on a critical hit. Winning deals the player's hand score plus STR and item attack, reduced by monster defense (minimum 1 damage). Losing deals the dealer's score plus monster attack power to the player, and AGI provides a chance to dodge.
 - After each cleared stage except the final boss, choose one of three distinct items drawn by configurable chance from `client/src/items.js`. Item effects stack for the current dungeon run only and are removed when the run ends. The six starting items add attack, damage reduction, maximum HP, dodge chance, critical chance, or healing on a successful hit.

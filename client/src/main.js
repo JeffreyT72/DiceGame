@@ -606,6 +606,7 @@ const screens = createScreenController({
     document.querySelector('#dungeon-catalog'),
     dungeons,
     startGame,
+    currentStats.level ?? 1,
   ),
 });
 const auth = createAuthController({

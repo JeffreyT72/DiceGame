@@ -1,4 +1,4 @@
-export function createDungeonCatalog(container, dungeons, onEnterDungeon) {
+export function createDungeonCatalog(container, dungeons, onEnterDungeon, playerLevel = 1) {
   container.replaceChildren();
 
   for (const dungeon of dungeons) {
@@ -15,6 +15,9 @@ export function createDungeonCatalog(container, dungeons, onEnterDungeon) {
 
     const description = document.createElement('p');
     description.textContent = dungeon.description;
+
+    const requirements = document.createElement('p');
+    requirements.textContent = `${dungeon.stages} stages · Level ${dungeon.levelRequirement} required`;
 
     const mobHeading = document.createElement('h4');
     mobHeading.textContent = `Mobs · ${dungeon.mobs.length}`;
@@ -33,10 +36,23 @@ export function createDungeonCatalog(container, dungeons, onEnterDungeon) {
     const enterButton = document.createElement('button');
     enterButton.className = 'button button-primary dungeon-enter';
     enterButton.type = 'button';
-    enterButton.textContent = 'Enter dungeon';
+    const canEnter = playerLevel >= dungeon.levelRequirement;
+    enterButton.textContent = canEnter
+      ? 'Enter dungeon'
+      : `Requires level ${dungeon.levelRequirement}`;
+    enterButton.disabled = !canEnter;
     enterButton.addEventListener('click', () => onEnterDungeon(dungeon));
 
-    card.append(heading, description, mobHeading, monsterList, bossHeading, bossList, enterButton);
+    card.append(
+      heading,
+      description,
+      requirements,
+      mobHeading,
+      monsterList,
+      bossHeading,
+      bossList,
+      enterButton,
+    );
     container.append(card);
   }
 }
