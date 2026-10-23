@@ -179,15 +179,297 @@ if (!existingDungeonRunColumns.has('dungeon_key')) {
   `);
 }
 
+playerDatabase.exec(`
+  CREATE TABLE IF NOT EXISTS login_attempts (
+    key TEXT PRIMARY KEY,
+    failure_count INTEGER NOT NULL DEFAULT 0 CHECK (failure_count >= 0),
+    first_failed_at TEXT NOT NULL DEFAULT (datetime('now')),
+    locked_until TEXT,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )
+`);
+
 const app = express();
 const port = Number(process.env.PORT ?? 3000);
 const clientDist = resolve(projectRoot, 'dist');
-
-app.use(express.json({ limit: '16kb' }));
-
-const scrypt = promisify(scryptCallback);
+const isProduction = process.env.NODE_ENV === 'production';
 const sessionCookieName = 'blackjack_session';
 const sessionDurationSeconds = 7 * 24 * 60 * 60;
+const csrfCookieName = 'blackjack_csrf';
+const csrfHeaderName = 'x-csrf-token';
+const maxLoginFailures = 5;
+const loginFailureWindowMs = 15 * 60 * 1000;
+const loginLockoutDurationMs = 30 * 60 * 1000;
+
+let helmet = null;
+let rateLimit = null;
+let csrfMiddlewareFactory = null;
+try {
+  ({ default: helmet } = await import('helmet'));
+} catch {
+  helmet = null;
+}
+try {
+  ({ default: rateLimit } = await import('express-rate-limit'));
+} catch {
+  rateLimit = null;
+}
+try {
+  ({ default: csrfMiddlewareFactory } = await import('csurf'));
+} catch {
+  csrfMiddlewareFactory = null;
+}
+
+const scrypt = promisify(scryptCallback);
+
+function parseCookies(cookieHeader = '') {
+  return Object.fromEntries(
+    cookieHeader
+      .split(';')
+      .map((cookie) => cookie.trim())
+      .filter(Boolean)
+      .map((cookie) => {
+        const separatorIndex = cookie.indexOf('=');
+        if (separatorIndex === -1) {
+          return [cookie, ''];
+        }
+        return [cookie.slice(0, separatorIndex), decodeURIComponent(cookie.slice(separatorIndex + 1))];
+      }),
+  );
+}
+
+function getCookie(request, name) {
+  return parseCookies(request.headers.cookie ?? '')[name] ?? null;
+}
+
+function safeCompare(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') {
+    return false;
+  }
+  const left = Buffer.from(a);
+  const right = Buffer.from(b);
+  if (left.length !== right.length) {
+    return false;
+  }
+  return timingSafeEqual(left, right);
+}
+
+function buildCookieHeader(name, value, options = {}) {
+  const attributes = [
+    `${name}=${encodeURIComponent(value)}`,
+    'Path=/',
+    `Max-Age=${options.maxAge ?? sessionDurationSeconds}`,
+    `SameSite=${options.sameSite ?? 'Lax'}`,
+    ...(options.httpOnly !== false ? ['HttpOnly'] : []),
+    ...(isProduction && options.secure !== false ? ['Secure'] : []),
+  ];
+  return attributes.join('; ');
+}
+
+function setCookieHeader(response, name, value, options = {}) {
+  const cookieHeader = buildCookieHeader(name, value, options);
+  const currentHeaders = response.getHeader('Set-Cookie');
+  const nextHeaders = Array.isArray(currentHeaders)
+    ? [...currentHeaders, cookieHeader]
+    : currentHeaders
+      ? [currentHeaders, cookieHeader]
+      : [cookieHeader];
+  response.setHeader('Set-Cookie', nextHeaders);
+}
+
+function createRateLimiter(options = {}) {
+  if (typeof rateLimit === 'function') {
+    return rateLimit({
+      windowMs: options.windowMs ?? 60 * 1000,
+      max: options.max ?? 120,
+      standardHeaders: true,
+      legacyHeaders: false,
+      message: { error: options.message ?? 'Too many requests. Please slow down.' },
+      ...(options.rateLimitConfig ?? {}),
+    });
+  }
+
+  const windowMs = options.windowMs ?? 60 * 1000;
+  const max = options.max ?? 120;
+  const buckets = new Map();
+  return (request, response, next) => {
+    const key = request.ip || request.headers['x-forwarded-for']?.split(',')[0]?.trim() || 'anonymous';
+    const now = Date.now();
+    const bucket = buckets.get(key) ?? { windowStart: now, count: 0 };
+    if (now - bucket.windowStart >= windowMs) {
+      bucket.windowStart = now;
+      bucket.count = 0;
+    }
+    bucket.count += 1;
+    buckets.set(key, bucket);
+    if (bucket.count > max) {
+      return response.status(429).json({ error: options.message ?? 'Too many requests. Please slow down.' });
+    }
+    next();
+  };
+}
+
+function generateToken() {
+  return randomBytes(32).toString('hex');
+}
+
+function getLoginAttemptKey(identifier) {
+  return `identifier:${String(identifier ?? '').trim().toLowerCase() || 'unknown'}`;
+}
+
+function clearFailedLoginAttempts(identifier) {
+  playerDatabase.prepare('DELETE FROM login_attempts WHERE key = ?')
+    .run(getLoginAttemptKey(identifier));
+}
+
+function getRemainingLockoutMs(identifier) {
+  const record = playerDatabase.prepare(`
+    SELECT locked_until AS lockedUntil
+    FROM login_attempts WHERE key = ?
+  `).get(getLoginAttemptKey(identifier));
+  if (!record?.lockedUntil) {
+    return 0;
+  }
+  const until = Date.parse(record.lockedUntil);
+  return Number.isFinite(until) && until > Date.now() ? until - Date.now() : 0;
+}
+
+function registerFailedLoginAttempt(identifier) {
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const key = getLoginAttemptKey(identifier);
+  const existing = playerDatabase.prepare(`
+    SELECT failure_count AS failureCount, first_failed_at AS firstFailedAt
+    FROM login_attempts WHERE key = ?
+  `).get(key);
+  if (!existing) {
+    playerDatabase.prepare(`
+      INSERT INTO login_attempts (key, failure_count, first_failed_at, updated_at)
+      VALUES (?, 1, ?, ?)
+    `).run(key, nowIso, nowIso);
+    return;
+  }
+  const firstFailedAt = Date.parse(existing.firstFailedAt);
+  const currentTime = now.getTime();
+  if (Number.isFinite(firstFailedAt) && currentTime - firstFailedAt > loginFailureWindowMs) {
+    playerDatabase.prepare(`
+      UPDATE login_attempts
+      SET failure_count = 1, first_failed_at = ?, locked_until = NULL, updated_at = ?
+      WHERE key = ?
+    `).run(nowIso, nowIso, key);
+    return;
+  }
+  const nextFailureCount = Number(existing.failureCount) + 1;
+  const lockedUntil = nextFailureCount >= maxLoginFailures
+    ? new Date(currentTime + loginLockoutDurationMs).toISOString()
+    : null;
+  playerDatabase.prepare(`
+    UPDATE login_attempts
+    SET failure_count = ?, locked_until = ?, updated_at = ?
+    WHERE key = ?
+  `).run(nextFailureCount, lockedUntil, nowIso, key);
+}
+
+function csrfProtectionMiddleware(request, response, next) {
+  if (['GET', 'HEAD', 'OPTIONS'].includes(request.method)) {
+    return next();
+  }
+  const tokenFromCookie = getCookie(request, csrfCookieName);
+  const tokenFromHeader = request.headers[csrfHeaderName];
+  if (!tokenFromCookie || typeof tokenFromHeader !== 'string' || !safeCompare(tokenFromCookie, tokenFromHeader)) {
+    return response.status(403).json({ error: 'Invalid CSRF token. Refresh the page and try again.' });
+  }
+  next();
+}
+
+const securityHeaders = helmet
+  ? helmet({
+      contentSecurityPolicy: false,
+      crossOriginEmbedderPolicy: false,
+      hsts: { maxAge: 31536000, includeSubDomains: true },
+    })
+  : (request, response, next) => {
+      response.setHeader('X-DNS-Prefetch-Control', 'off');
+      response.setHeader('X-Frame-Options', 'DENY');
+      response.setHeader('X-Content-Type-Options', 'nosniff');
+      response.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+      response.setHeader('X-XSS-Protection', '0');
+      response.setHeader('X-Powered-By', 'Blackjack');
+      next();
+    };
+
+const authRateLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  message: 'Too many authentication attempts. Please wait a bit and try again.',
+});
+const generalRateLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  max: 240,
+  message: 'Too many requests. Please slow down.',
+});
+
+app.disable('x-powered-by');
+app.use(generalRateLimiter);
+app.use(securityHeaders);
+app.use(express.json({ limit: '16kb' }));
+app.use((request, response, next) => {
+  request.cookies = parseCookies(request.headers.cookie ?? '');
+  next();
+});
+app.use((request, response, next) => {
+  if (request.method === 'GET' || request.method === 'HEAD' || request.method === 'OPTIONS') {
+    return next();
+  }
+  const tokenFromCookie = request.cookies[csrfCookieName] ?? getCookie(request, csrfCookieName);
+  const tokenFromHeader = request.headers[csrfHeaderName];
+  if (!tokenFromCookie || typeof tokenFromHeader !== 'string' || !safeCompare(tokenFromCookie, tokenFromHeader)) {
+    return response.status(403).json({ error: 'Invalid CSRF token. Refresh the page and try again.' });
+  }
+  next();
+});
+app.use((request, response, next) => {
+  const activeToken = request.cookies[csrfCookieName] ?? generateToken();
+  setCookieHeader(response, csrfCookieName, activeToken, {
+    httpOnly: false,
+    sameSite: 'Lax',
+    secure: isProduction,
+    maxAge: sessionDurationSeconds,
+  });
+  request.csrfToken = activeToken;
+  next();
+});
+
+const sessionCookieOptions = {
+  httpOnly: true,
+  sameSite: 'Lax',
+  secure: isProduction,
+  maxAge: sessionDurationSeconds,
+};
+
+function setSessionCookie(response, token) {
+  setCookieHeader(response, sessionCookieName, token, sessionCookieOptions);
+}
+
+function setLogoutCookie(response) {
+  setCookieHeader(response, sessionCookieName, '', {
+    ...sessionCookieOptions,
+    maxAge: 0,
+  });
+}
+
+app.get('/api/csrf-token', (request, response) => {
+  const token = request.cookies[csrfCookieName] ?? generateToken();
+  setCookieHeader(response, csrfCookieName, token, {
+    httpOnly: false,
+    sameSite: 'Lax',
+    secure: isProduction,
+    maxAge: sessionDurationSeconds,
+  });
+  response.json({ csrfToken: token });
+});
+
+app.use('/api/auth', authRateLimiter);
 
 function hashToken(token) {
   return createHash('sha256').update(token).digest('hex');
@@ -223,14 +505,6 @@ function publicAccount(userId) {
     user: { id, username, email },
     stats: { ...stats, level, availableStatPoints: Math.max(0, level - 1 - allocatedPoints) },
   };
-}
-
-function setSessionCookie(response, token) {
-  const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
-  response.setHeader(
-    'Set-Cookie',
-    `${sessionCookieName}=${encodeURIComponent(token)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${sessionDurationSeconds}${secure}`,
-  );
 }
 
 function createSession(response, userId) {
@@ -293,6 +567,7 @@ app.post('/api/auth/signup', async (request, response) => {
     throw error;
   }
 
+  clearFailedLoginAttempts(username);
   createSession(response, userId);
   response.status(201).json(publicAccount(userId));
 });
@@ -304,20 +579,34 @@ app.post('/api/auth/login', async (request, response) => {
     return response.status(400).json({ error: 'Enter your username or email and password.' });
   }
 
+  const lockoutMs = getRemainingLockoutMs(identifier);
+  if (lockoutMs > 0) {
+    const secondsRemaining = Math.max(1, Math.ceil(lockoutMs / 1000));
+    return response.status(429).json({ error: `Too many failed login attempts. Please try again in ${secondsRemaining} seconds.` });
+  }
+
   const user = playerDatabase.prepare(`
     SELECT id, password_hash AS passwordHash, password_salt AS passwordSalt
     FROM users WHERE username = ? OR email = ?
   `).get(identifier, identifier);
   if (!user) {
+    registerFailedLoginAttempt(identifier);
     return response.status(401).json({ error: 'Username/email or password is incorrect.' });
   }
 
   const candidateHash = await scrypt(password, user.passwordSalt, 64);
   const storedHash = Buffer.from(user.passwordHash, 'hex');
   if (!timingSafeEqual(candidateHash, storedHash)) {
+    registerFailedLoginAttempt(identifier);
+    const remainingLockoutMs = getRemainingLockoutMs(identifier);
+    if (remainingLockoutMs > 0) {
+      const secondsRemaining = Math.max(1, Math.ceil(remainingLockoutMs / 1000));
+      return response.status(429).json({ error: `Too many failed login attempts. Please try again in ${secondsRemaining} seconds.` });
+    }
     return response.status(401).json({ error: 'Username/email or password is incorrect.' });
   }
 
+  clearFailedLoginAttempts(identifier);
   createSession(response, user.id);
   response.json(publicAccount(user.id));
 });
@@ -331,10 +620,7 @@ app.post('/api/auth/logout', (request, response) => {
   if (token) {
     playerDatabase.prepare('DELETE FROM player_sessions WHERE token_hash = ?').run(hashToken(token));
   }
-  response.setHeader(
-    'Set-Cookie',
-    `${sessionCookieName}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`,
-  );
+  setLogoutCookie(response);
   response.status(204).end();
 });
 

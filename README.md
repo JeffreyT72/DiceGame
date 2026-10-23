@@ -41,7 +41,7 @@ Dungeon progress is temporary and is not saved for recovery. Entering a dungeon 
 
 Create an account or sign in before playing. Player accounts, password hashes, login sessions, and progression are stored in `data/player-accounts.sqlite`. Active dungeon stages and blackjack hands are stored temporarily in the respective databases and removed when a run ends. Both databases are created automatically.
 
-Set `DATABASE_PATH` or `PLAYER_DATABASE_PATH` to use other SQLite files, or `PORT` to change the server port. Passwords are hashed with Node's scrypt; login sessions use expiring, HttpOnly cookies.
+Set `DATABASE_PATH` or `PLAYER_DATABASE_PATH` to use other SQLite files, or `PORT` to change the server port. Passwords are hashed with Node's scrypt; login sessions use expiring, HttpOnly cookies, and the server sets secure same-site cookie flags in production. The app also adds HTTP security headers, request throttling, CSRF protection on non-GET requests, and login lockouts after repeated failures.
 
 ## API
 
