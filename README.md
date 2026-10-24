@@ -64,11 +64,14 @@ Set `DATABASE_PATH` or `PLAYER_DATABASE_PATH` to use other SQLite files, or `POR
 ```text
 client/
   src/
-    main.js             Game flow and dungeon orchestration
+    main.js             App setup and dungeon orchestration
+    game/combat.js      Blackjack combat resolution
     services/api.js     Shared API requests
     ui/auth.js          Sign-in, sign-up, and session controls
     ui/character-lab.js Character progression and stat allocation
     ui/dungeon-catalog.js Dungeon and monster catalog page
+    ui/leaderboard.js   Leaderboard loading and rendering
+    ui/loot.js          Run inventory and item-choice rendering
     ui/screens.js       Lobby, dungeon catalog, Lab, leaderboard, and placeholder navigation
     blackjack-scene.js  Phaser dungeon battlefield
 server/                 Express API, blackjack rules, accounts, and dungeon progression

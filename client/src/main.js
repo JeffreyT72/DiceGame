@@ -2,9 +2,12 @@ import './style.css';
 import { createBlackjackGame } from './blackjack-scene.js';
 import { characters } from './characters.js';
 import { request } from './services/api.js';
+import { outcomeMessage, resolveCombatRound } from './game/combat.js';
 import { createAuthController } from './ui/auth.js';
 import { createCharacterLab } from './ui/character-lab.js';
 import { createDungeonCatalog } from './ui/dungeon-catalog.js';
+import { createLeaderboardController } from './ui/leaderboard.js';
+import { createLootRenderer } from './ui/loot.js';
 import { createScreenController } from './ui/screens.js';
 import { chooseItemOptions, getItem, getItemEffects } from './items.js';
 import {
@@ -14,8 +17,6 @@ import {
 } from '../../shared/dungeon-config.js';
 
 const cardActionDelayMs = 200;
-const winningOutcomes = ['player_blackjack', 'player_win', 'dealer_bust'];
-const losingOutcomes = ['dealer_blackjack', 'player_bust', 'dealer_win'];
 const expRequiredForNextLevel = (level) => level * 100;
 
 let game = null;
@@ -46,9 +47,6 @@ const dungeonProgress = document.querySelector('#dungeon-progress');
 const table = document.querySelector('#table');
 const lootPanel = document.querySelector('#loot-panel');
 const accountName = document.querySelector('#account-name');
-const experienceLeaderboardList = document.querySelector('#experience-leaderboard-list');
-const monstersLeaderboardList = document.querySelector('#monsters-leaderboard-list');
-const leaderboardStatus = document.querySelector('#leaderboard-status');
 const characterSelect = document.querySelector('#character-select');
 const settingsStatus = document.querySelector('#settings-status');
 const characterPreferenceKey = 'dungeon-run-character';
@@ -136,130 +134,25 @@ function maximumMonsterHealth() {
   return currentMonster()?.hp ?? 0;
 }
 
-function outcomeMessage(outcome) {
-  const messages = {
-    player_blackjack: 'Blackjack! You win the hand.',
-    dealer_blackjack: 'The monster wins the hand.',
-    player_bust: 'Bust! The monster wins the hand.',
-    dealer_bust: 'The monster busts. You win the hand!',
-    player_win: 'You win the hand!',
-    dealer_win: 'The monster wins the hand.',
-    push: 'Push. No damage dealt.',
-  };
-  return messages[outcome] ?? 'Your hand is in play.';
-}
-
-function resolveCombatRound(gameState) {
-  if (
-    !runState
-    || runState.phase !== 'active'
-    || gameState.status !== 'complete'
-    || gameState.id === runState.lastResolvedGameId
-  ) {
-    return;
-  }
-
-  if (winningOutcomes.includes(gameState.outcome)) {
-    const itemEffects = getItemEffects(runState.items);
-    const baseDamage = Math.max(
-      1,
-      gameState.playerScore + currentStats.strength + itemEffects.attack - currentMonster().defense,
-    )
-      * (gameState.doubledDown ? 2 : 1);
-    const criticalChance = Math.min(100, currentStats.luck * 3 + itemEffects.criticalChance * 100);
-    const criticalHit = Math.random() * 100 < criticalChance;
-    const hitMultiplier = gameState.hitCount > 0
-      ? gameState.hitMultiplier + itemEffects.hitMultiplier
-      : 1;
-    const wager = runState.activeWager;
-    const wagerMultiplier = 1 + (wager?.percentage ?? 0) * 2;
-    const damage = Math.floor(
-      baseDamage * hitMultiplier * wagerMultiplier * (criticalHit ? 1.5 : 1),
-    );
-    runState.monsterHp = Math.max(0, runState.monsterHp - damage);
-    runState.lastDamageEvent = {
-      gameId: gameState.id,
-      damage,
-      hitCount: gameState.hitCount,
-      hitMultiplier,
-    };
-    const healing = Math.min(
-      maximumHealth() - runState.playerHp,
-      Math.ceil(
-        (
-          maximumHealth() * itemEffects.healOnHitHpBased
-          + damage * itemEffects.healOnHitDamageBased
-        ) * (1 + itemEffects.healing),
-      ),
-    );
-    runState.playerHp += healing;
-    const hitMessage = criticalHit
-      ? `Critical hit! You deal ${damage} damage.`
-      : `You deal ${damage} damage.`;
-    const doubleDownMessage = gameState.doubledDown ? ' Double down doubles your attack!' : '';
-    const wagerMessage = wager
-      ? ` Your ${wager.hpStake} HP wager adds ${wager.percentage * 200}% damage.`
-      : '';
-    runState.lastRoundMessage = healing > 0
-      ? `${hitMessage}${doubleDownMessage}${wagerMessage} Your items restore ${healing} HP.`
-      : `${hitMessage}${doubleDownMessage}${wagerMessage}`;
-    if (runState.monsterHp === 0) {
-      runState.phase = 'clearing';
-      runState.pendingStageClear = { stage: runState.stage, gameId: gameState.id };
-    }
-  } else if (losingOutcomes.includes(gameState.outcome)) {
-    const itemEffects = getItemEffects(runState.items);
-    const baseDamage = gameState.dealerScore + currentMonster().attackPower;
-    const damage = Math.floor(baseDamage * (1 - itemEffects.damageReduction))
-      * (gameState.doubledDown ? 2 : 1);
-    const dodgeChance = Math.min(100, currentStats.agility * 5 + itemEffects.dodgeChance * 100);
-    const wagerMessage = runState.activeWager
-      ? ` Your ${runState.activeWager.hpStake} HP wager was already spent.`
-      : '';
-    if (Math.random() * 100 < dodgeChance) {
-      runState.lastRoundMessage = `You dodge the monster's ${damage}-damage attack.${gameState.doubledDown ? ' Double down doubles the damage you would take.' : ''}${wagerMessage}`;
-    } else {
-      runState.playerHp = Math.max(0, runState.playerHp - damage);
-      const reflectedDamage = Math.min(
-        runState.monsterHp,
-        Math.floor(damage * itemEffects.damageReflection),
-      );
-      runState.monsterHp -= reflectedDamage;
-      const reflectionMessage = reflectedDamage > 0
-        ? ` Your gear reflects ${reflectedDamage} damage.`
-        : '';
-      runState.lastRoundMessage = gameState.doubledDown
-        ? `The monster deals ${damage} damage to you. Double down doubles the damage you take.${reflectionMessage}${wagerMessage}`
-        : `The monster deals ${damage} damage to you.${reflectionMessage}${wagerMessage}`;
-    }
-    if (runState.playerHp === 0) {
-      runState.phase = 'failed';
-      runState.items = [];
-      removeDungeonSession(runState.dungeonId, gameState.id).catch((error) => {
-        console.error(error);
-        status.textContent = `You were defeated on stage ${runState.stage}. Could not remove the dungeon session: ${error.message}`;
-      });
-    } else if (runState.monsterHp === 0) {
-      runState.phase = 'clearing';
-      runState.pendingStageClear = { stage: runState.stage, gameId: gameState.id };
-    }
-  } else {
-    runState.lastRoundMessage = 'No damage dealt.';
-  }
-
-  runState.lastResolvedGameId = gameState.id;
-  if (runState.pendingStageClear) {
-    syncStageClear().catch((error) => {
-      console.error(error);
-      status.textContent = `Could not finish stage ${runState.stage}: ${error.message}. Retry the stage clear.`;
-      renderControls();
-    });
-  }
-}
-
 function render(gameState) {
   currentGame = gameState;
-  resolveCombatRound(gameState);
+  resolveCombatRound(gameState, {
+    runState,
+    currentStats,
+    currentMonster,
+    maximumHealth,
+    removeDungeonSession,
+    syncStageClear,
+    onDungeonSessionRemovalError: (error, failedRun) => {
+      console.error(error);
+      status.textContent = `You were defeated on stage ${failedRun.stage}. Could not remove the dungeon session: ${error.message}`;
+    },
+    onStageClearError: (error, failedRun) => {
+      console.error(error);
+      status.textContent = `Could not finish stage ${failedRun.stage}: ${error.message}. Retry the stage clear.`;
+      renderControls();
+    },
+  });
   const monster = currentMonster();
   const stageCount = currentStageCount();
   const boss = Boolean(runState && runState.stage === stageCount);
@@ -324,8 +217,8 @@ function renderControls() {
   newGameButton.hidden = awaitingWager;
   suggestedLevel.textContent = `Level ${runState?.suggestedLevel ?? suggestedCharacterLevel()}`;
   lootPanel.hidden = !stageComplete;
-  renderItemInventory();
-  renderLootChoices();
+  lootRenderer.renderInventory();
+  lootRenderer.renderChoices();
   newGameButton.textContent = startingHand
     ? 'Starting hand…'
     : runState?.phase === 'clearing'
@@ -344,47 +237,6 @@ function renderControls() {
         ? `${runState.dungeon.name} · Defeated on stage ${runState.stage} of ${stageCount}`
         : `${runState.dungeon.name} · Stage ${runState.stage} of ${stageCount} · ${label} · ${runState.items.length} item${runState.items.length === 1 ? '' : 's'} collected`;
     document.querySelector('#active-dungeon-name').textContent = runState.dungeon.name;
-  }
-}
-
-function renderItemInventory() {
-  const activeItems = document.querySelector('#active-items');
-  const emptyInventory = document.querySelector('#empty-inventory');
-  const groupedItems = new Map();
-  for (const collectedItem of runState?.items ?? []) {
-    if (!collectedItem || typeof collectedItem.itemId !== 'string') continue;
-    const item = getItem(collectedItem.itemId);
-    if (item) groupedItems.set(item, (groupedItems.get(item) ?? 0) + 1);
-  }
-
-  activeItems.replaceChildren();
-  activeItems.hidden = groupedItems.size === 0;
-  emptyInventory.hidden = groupedItems.size > 0;
-  for (const [item, count] of groupedItems) {
-    const entry = document.createElement('li');
-    entry.textContent = `${item.name}${count > 1 ? ` ×${count}` : ''}`;
-    activeItems.append(entry);
-  }
-}
-
-function renderLootChoices() {
-  const lootChoices = document.querySelector('#loot-choices');
-  lootChoices.replaceChildren();
-  for (const itemId of runState?.lootChoices ?? []) {
-    const item = getItem(itemId);
-    if (!item) continue;
-    const button = document.createElement('button');
-    button.className = 'loot-choice';
-    button.type = 'button';
-    button.dataset.item = item.id;
-    button.disabled = resolvingStage;
-    const name = document.createElement('strong');
-    name.textContent = item.name;
-    const description = document.createElement('span');
-    description.textContent = item.description;
-    button.append(name, description);
-    button.addEventListener('click', () => chooseItem(item.id));
-    lootChoices.append(button);
   }
 }
 
@@ -572,51 +424,6 @@ async function quitDungeon() {
   renderControls();
 }
 
-async function openLeaderboard() {
-  experienceLeaderboardList.replaceChildren();
-  monstersLeaderboardList.replaceChildren();
-  leaderboardStatus.textContent = 'Loading leaderboard…';
-
-  try {
-    const { experience, monstersDefeated } = await request('/api/player/leaderboard');
-    const renderEntries = (list, players, scoreLabel, emptyLabel) => {
-      if (players.length === 0) {
-        const emptyEntry = document.createElement('li');
-        emptyEntry.className = 'leaderboard-empty';
-        emptyEntry.textContent = emptyLabel;
-        list.append(emptyEntry);
-        return;
-      }
-      for (const player of players) {
-        const entry = document.createElement('li');
-        const username = document.createElement('strong');
-        const score = document.createElement('span');
-        username.textContent = player.username;
-        score.textContent = scoreLabel(player);
-        entry.append(username, score);
-        list.append(entry);
-      }
-    };
-
-    renderEntries(
-      experienceLeaderboardList,
-      experience,
-      (player) => `${player.totalExp.toLocaleString()} EXP`,
-      'No players have registered yet.',
-    );
-    renderEntries(
-      monstersLeaderboardList,
-      monstersDefeated,
-      (player) => player.monstersDefeated.toLocaleString(),
-      'No players have registered yet.',
-    );
-    leaderboardStatus.textContent = '';
-  } catch (error) {
-    console.error(error);
-    leaderboardStatus.textContent = `Could not load leaderboard: ${error.message}`;
-  }
-}
-
 async function takeAction(action) {
   if (!currentGame || currentGame.status !== 'playing' || runState?.phase !== 'active') {
     return;
@@ -678,6 +485,13 @@ hitButton.addEventListener('click', () => takeAction('hit'));
 standButton.addEventListener('click', () => takeAction('stand'));
 doubleDownButton.addEventListener('click', () => takeAction('double_down'));
 newGameButton.addEventListener('click', nextHand);
+const lootRenderer = createLootRenderer({
+  getItems: () => runState?.items,
+  getChoices: () => runState?.lootChoices,
+  isResolving: () => resolvingStage,
+  onChooseItem: chooseItem,
+});
+const leaderboard = createLeaderboardController();
 const characterLab = createCharacterLab({
   getStats: () => currentStats,
   setStats: (stats) => {
@@ -698,7 +512,7 @@ renderProgression = characterLab.renderProgression;
 const screens = createScreenController({
   onQuitDungeon: quitDungeon,
   onOpenLab: renderProgression,
-  onOpenLeaderboard: openLeaderboard,
+  onOpenLeaderboard: leaderboard.open,
   onOpenDungeons: () => createDungeonCatalog(
     document.querySelector('#dungeon-catalog'),
     dungeons,
