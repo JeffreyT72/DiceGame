@@ -10,7 +10,7 @@ export function createDungeonCatalog(container, dungeons, onEnterDungeon, player
     const title = document.createElement('h3');
     title.textContent = dungeon.name;
     const reward = document.createElement('span');
-    reward.textContent = `${dungeon.rewardExp.toLocaleString()} EXP`;
+    reward.textContent = `Clear reward: ${dungeon.rewardExp.toLocaleString()} EXP`;
     heading.append(title, reward);
 
     const description = document.createElement('p');

@@ -199,6 +199,30 @@ h1 {
   gap: 12px;
 }
 
+.wager-panel {
+  grid-column: 1 / -1;
+  padding: 16px;
+  border: 1px solid #35473e;
+  border-radius: 12px;
+  background: #131e1a;
+}
+
+.wager-panel p {
+  margin: 0 0 12px;
+  color: #aebbb3;
+  text-align: center;
+}
+
+.wager-choices {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.wager-choices .button {
+  padding: 8px 12px;
+}
+
 .button {
   min-height: 50px;
   padding: 0 18px;
@@ -300,6 +324,18 @@ h1 {
   outline-offset: 2px;
 }
 
+.auth-honeypot {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .auth-panel [hidden],
 #game-panel[hidden],
 #game-actions[hidden],
@@ -309,6 +345,7 @@ h1 {
 #dungeon-screen[hidden],
 #lab-screen[hidden],
 #leaderboard-screen[hidden],
+#settings-screen[hidden],
 #placeholder-screen[hidden] {
   display: none;
 }
@@ -356,6 +393,39 @@ h1 {
 .screen-description {
   margin: 8px 0 24px;
   color: #aebbb3;
+}
+
+.settings-field {
+  display: grid;
+  gap: 8px;
+  max-width: 360px;
+}
+
+.settings-field label {
+  color: #d1d9d2;
+  font-size: 0.9rem;
+  font-weight: 650;
+}
+
+.settings-field select {
+  min-height: 48px;
+  padding: 10px 12px;
+  border: 1px solid #536459;
+  border-radius: 9px;
+  background: #101a19;
+  color: #f1f4ef;
+  font: inherit;
+}
+
+.settings-field select:focus-visible {
+  outline: 3px solid #b4d282;
+  outline-offset: 2px;
+}
+
+.settings-status {
+  min-height: 1.5em;
+  margin: 14px 0 0;
+  color: #b4d282;
 }
 
 .lobby-level {
@@ -746,6 +816,10 @@ h1 {
 
   .actions {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .wager-choices {
+    grid-template-columns: 1fr;
   }
 
   .stat-grid {

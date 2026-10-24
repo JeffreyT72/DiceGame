@@ -46,12 +46,58 @@ export const itemDefinitions = [
   {
     id: 'iron-necklace',
     name: 'Iron Necklace',
-    description: 'Restore 10% of maximum HP on a successful hit.',
-    rarity: 'common',
+    description: 'Recover 10% of maximum HP on a successful hit.',
+    rarity: 'uncommon',
+    maxLevel: 10,
+    chance: 0.7,
+    effects: { healOnHitHpBased: 0.1 },
+  },
+  {
+    id: 'white-cloak',
+    name: 'White Cloak',
+    description: 'Recover 30% of the damage you deal.',
+    rarity: 'uncommon',
+    maxLevel: 10,
+    chance: 0.7,
+    effects: { healOnHitDamageBased: 0.3 },
+  },
+  {
+    id: 'assault-vest',
+    name: 'Assault Vest',
+    description: '10% damage reduction and +12% maximum HP.',
+    rarity: 'rare',
     maxLevel: 10,
     chance: 0.5,
-    effects: { healOnHit: 0.1 },
+    effects: { damageReduction: 0.1, maxHealth: 0.12 },
   },
+  {
+    id: 'rocky-helmet',
+    name: 'Rocky Helmet',
+    description: 'Reflect 10% of damage taken back to the attacker.',
+    rarity: 'uncommon',
+    maxLevel: 10,
+    chance: 0.7,
+    effects: { damageReflection: 0.1 },
+  },
+  {
+    id: 'mystic-amulet',
+    name: 'Mystic Amulet',
+    description: '+3% lifesteal on hit and +15% healing.',
+    rarity: 'uncommon',
+    maxLevel: 10,
+    chance: 0.7,
+    effects: { healOnHitDamageBased: 0.3, healing: 0.15 },
+  },
+  {
+    id: 'bear-claw',
+    name: 'Bear Claw',
+    description: '+0.1 Hit Multiplier.',
+    rarity: 'rare',
+    maxLevel: 10,
+    chance: 0.5,
+    effects: { hitMultiplier: 0.1 },
+  }
+
 ];
 
 const itemsById = new Map(itemDefinitions.map((item) => [item.id, item]));
@@ -64,10 +110,14 @@ export function getItemEffects(collectedItems) {
   const effects = {
     attack: 0,
     damageReduction: 0,
+    damageReflection: 0,
     maxHealth: 0,
     dodgeChance: 0,
     criticalChance: 0,
-    healOnHit: 0,
+    healOnHitHpBased: 0,
+    healOnHitDamageBased: 0,
+    healing: 0,
+    hitMultiplier: 0,
   };
 
   for (const collectedItem of collectedItems) {
@@ -80,9 +130,13 @@ export function getItemEffects(collectedItems) {
   }
 
   effects.damageReduction = Math.min(1, effects.damageReduction);
+  effects.damageReflection = Math.min(1, effects.damageReflection);
   effects.dodgeChance = Math.min(1, effects.dodgeChance);
   effects.criticalChance = Math.min(1, effects.criticalChance);
-  effects.healOnHit = Math.min(1, effects.healOnHit);
+  effects.healOnHitHpBased = Math.min(1, effects.healOnHitHpBased);
+  effects.healOnHitDamageBased = Math.min(1, effects.healOnHitDamageBased);
+  effects.healing = Math.min(1, effects.healing);
+  effects.hitMultiplier = Math.min(1, effects.hitMultiplier);
   return effects;
 }
 

@@ -3,6 +3,7 @@ export function createScreenController({
   onOpenLab,
   onOpenLeaderboard,
   onOpenDungeons,
+  onOpenSettings,
 }) {
   const screens = {
     lobby: document.querySelector('#lobby-screen'),
@@ -10,6 +11,7 @@ export function createScreenController({
     dungeon: document.querySelector('#dungeon-screen'),
     lab: document.querySelector('#lab-screen'),
     leaderboard: document.querySelector('#leaderboard-screen'),
+    settings: document.querySelector('#settings-screen'),
     placeholder: document.querySelector('#placeholder-screen'),
   };
   const gameActions = document.querySelector('#game-actions');
@@ -41,9 +43,8 @@ export function createScreenController({
     show('placeholder');
   });
   document.querySelector('#settings-button').addEventListener('click', () => {
-    placeholderTitle.textContent = 'Settings';
-    placeholderDescription.textContent = 'Settings are coming soon.';
-    show('placeholder');
+    show('settings');
+    onOpenSettings();
   });
   document.querySelectorAll('[data-back-to-lobby]').forEach((button) => {
     button.addEventListener('click', () => {

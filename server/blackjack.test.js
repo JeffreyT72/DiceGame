@@ -41,3 +41,27 @@ test('double down is rejected after the player has hit', () => {
   assert.equal(state.playerHand.length, 3);
   assert.equal(state.doubledDown, undefined);
 });
+
+test('each hit increases the attack multiplier by 0.2 for that hand', () => {
+  const state = {
+    ...createTestState(),
+    deck: [
+      { rank: '4', suit: 'clubs' },
+      { rank: '5', suit: 'clubs' },
+    ],
+    playerHand: [
+      { rank: '2', suit: 'hearts' },
+      { rank: '3', suit: 'hearts' },
+    ],
+  };
+
+  const firstHit = applyAction(state, 'hit');
+  assert.equal(firstHit.state.hitCount, 1);
+  assert.equal(firstHit.state.hitMultiplier, 1.2);
+  assert.equal(toPublicGame('game-id', firstHit.state).hitMultiplier, 1.2);
+
+  const secondHit = applyAction(firstHit.state, 'hit');
+  assert.equal(secondHit.state.hitCount, 2);
+  assert.equal(secondHit.state.hitMultiplier, 1.4);
+  assert.equal(toPublicGame('game-id', secondHit.state).hitMultiplier, 1.4);
+});

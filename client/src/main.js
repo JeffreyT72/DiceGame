@@ -1,5 +1,6 @@
 import './style.css';
 import { createBlackjackGame } from './blackjack-scene.js';
+import { characters } from './characters.js';
 import { request } from './services/api.js';
 import { createAuthController } from './ui/auth.js';
 import { createCharacterLab } from './ui/character-lab.js';
@@ -37,6 +38,8 @@ const hitButton = document.querySelector('#hit-button');
 const standButton = document.querySelector('#stand-button');
 const doubleDownButton = document.querySelector('#double-down-button');
 const newGameButton = document.querySelector('#new-game-button');
+const wagerPanel = document.querySelector('#wager-panel');
+const wagerButtons = document.querySelectorAll('[data-wager]');
 const suggestedLevel = document.querySelector('#suggested-level');
 const status = document.querySelector('#status');
 const dungeonProgress = document.querySelector('#dungeon-progress');
@@ -46,9 +49,39 @@ const accountName = document.querySelector('#account-name');
 const experienceLeaderboardList = document.querySelector('#experience-leaderboard-list');
 const monstersLeaderboardList = document.querySelector('#monsters-leaderboard-list');
 const leaderboardStatus = document.querySelector('#leaderboard-status');
+const characterSelect = document.querySelector('#character-select');
+const settingsStatus = document.querySelector('#settings-status');
+const characterPreferenceKey = 'dungeon-run-character';
+
+let selectedCharacter = characters[0].id;
+let characterSettingsMessage = '';
+try {
+  const savedCharacter = window.localStorage.getItem(characterPreferenceKey);
+  if (characters.some(({ id }) => id === savedCharacter)) {
+    selectedCharacter = savedCharacter;
+  }
+} catch (error) {
+  console.error(error);
+  characterSettingsMessage = 'Could not load your saved character. The Adventurer is selected for this visit.';
+}
+
+characterSelect.addEventListener('change', () => {
+  selectedCharacter = characterSelect.value;
+  const character = characters.find(({ id }) => id === selectedCharacter);
+  game?.scene.getScene('blackjack')?.setCharacter(selectedCharacter);
+
+  try {
+    window.localStorage.setItem(characterPreferenceKey, selectedCharacter);
+    characterSettingsMessage = `${character.name} selected.`;
+  } catch (error) {
+    console.error(error);
+    characterSettingsMessage = `${character.name} selected for this visit, but the preference could not be saved.`;
+  }
+  settingsStatus.textContent = characterSettingsMessage;
+});
 
 function baseMaximumHealth() {
-  return 100 + currentStats.constitution * 20;
+  return 200 + currentStats.constitution * 20;
 }
 
 function maximumHealth() {
@@ -72,6 +105,7 @@ function initialRunState(dungeon, run) {
     monsterHp: getDungeonMonster(dungeon, 1).hp,
     lastResolvedGameId: null,
     lastRoundMessage: '',
+    lastExpAwarded: 0,
     phase: 'active',
     pendingStageClear: null,
     items: [],
@@ -134,20 +168,41 @@ function resolveCombatRound(gameState) {
       * (gameState.doubledDown ? 2 : 1);
     const criticalChance = Math.min(100, currentStats.luck * 3 + itemEffects.criticalChance * 100);
     const criticalHit = Math.random() * 100 < criticalChance;
-    const damage = criticalHit ? Math.floor(baseDamage * 1.5) : baseDamage;
+    const hitMultiplier = gameState.hitCount > 0
+      ? gameState.hitMultiplier + itemEffects.hitMultiplier
+      : 1;
+    const wager = runState.activeWager;
+    const wagerMultiplier = 1 + (wager?.percentage ?? 0) * 2;
+    const damage = Math.floor(
+      baseDamage * hitMultiplier * wagerMultiplier * (criticalHit ? 1.5 : 1),
+    );
     runState.monsterHp = Math.max(0, runState.monsterHp - damage);
+    runState.lastDamageEvent = {
+      gameId: gameState.id,
+      damage,
+      hitCount: gameState.hitCount,
+      hitMultiplier,
+    };
     const healing = Math.min(
       maximumHealth() - runState.playerHp,
-      Math.ceil(maximumHealth() * itemEffects.healOnHit),
+      Math.ceil(
+        (
+          maximumHealth() * itemEffects.healOnHitHpBased
+          + damage * itemEffects.healOnHitDamageBased
+        ) * (1 + itemEffects.healing),
+      ),
     );
     runState.playerHp += healing;
     const hitMessage = criticalHit
       ? `Critical hit! You deal ${damage} damage.`
       : `You deal ${damage} damage.`;
     const doubleDownMessage = gameState.doubledDown ? ' Double down doubles your attack!' : '';
+    const wagerMessage = wager
+      ? ` Your ${wager.hpStake} HP wager adds ${wager.percentage * 200}% damage.`
+      : '';
     runState.lastRoundMessage = healing > 0
-      ? `${hitMessage}${doubleDownMessage} The necklace restores ${healing} HP.`
-      : `${hitMessage}${doubleDownMessage}`;
+      ? `${hitMessage}${doubleDownMessage}${wagerMessage} Your items restore ${healing} HP.`
+      : `${hitMessage}${doubleDownMessage}${wagerMessage}`;
     if (runState.monsterHp === 0) {
       runState.phase = 'clearing';
       runState.pendingStageClear = { stage: runState.stage, gameId: gameState.id };
@@ -158,13 +213,24 @@ function resolveCombatRound(gameState) {
     const damage = Math.floor(baseDamage * (1 - itemEffects.damageReduction))
       * (gameState.doubledDown ? 2 : 1);
     const dodgeChance = Math.min(100, currentStats.agility * 5 + itemEffects.dodgeChance * 100);
+    const wagerMessage = runState.activeWager
+      ? ` Your ${runState.activeWager.hpStake} HP wager was already spent.`
+      : '';
     if (Math.random() * 100 < dodgeChance) {
-      runState.lastRoundMessage = `You dodge the monster's ${damage}-damage attack.${gameState.doubledDown ? ' Double down doubles the damage you would take.' : ''}`;
+      runState.lastRoundMessage = `You dodge the monster's ${damage}-damage attack.${gameState.doubledDown ? ' Double down doubles the damage you would take.' : ''}${wagerMessage}`;
     } else {
       runState.playerHp = Math.max(0, runState.playerHp - damage);
+      const reflectedDamage = Math.min(
+        runState.monsterHp,
+        Math.floor(damage * itemEffects.damageReflection),
+      );
+      runState.monsterHp -= reflectedDamage;
+      const reflectionMessage = reflectedDamage > 0
+        ? ` Your gear reflects ${reflectedDamage} damage.`
+        : '';
       runState.lastRoundMessage = gameState.doubledDown
-        ? `The monster deals ${damage} damage to you. Double down doubles the damage you take.`
-        : `The monster deals ${damage} damage to you.`;
+        ? `The monster deals ${damage} damage to you. Double down doubles the damage you take.${reflectionMessage}${wagerMessage}`
+        : `The monster deals ${damage} damage to you.${reflectionMessage}${wagerMessage}`;
     }
     if (runState.playerHp === 0) {
       runState.phase = 'failed';
@@ -173,6 +239,9 @@ function resolveCombatRound(gameState) {
         console.error(error);
         status.textContent = `You were defeated on stage ${runState.stage}. Could not remove the dungeon session: ${error.message}`;
       });
+    } else if (runState.monsterHp === 0) {
+      runState.phase = 'clearing';
+      runState.pendingStageClear = { stage: runState.stage, gameId: gameState.id };
     }
   } else {
     runState.lastRoundMessage = 'No damage dealt.';
@@ -201,6 +270,7 @@ function render(gameState) {
       monsterHp: runState?.monsterHp ?? monster?.hp ?? 0,
       monsterMaxHp: maximumMonsterHealth(),
       monsterName: monster?.name ?? 'Monster',
+      damageEvent: runState?.lastDamageEvent ?? null,
       stage: runState?.stage ?? 1,
       stageCount,
       boss,
@@ -216,9 +286,9 @@ function render(gameState) {
   if (runState?.phase === 'failed') {
     status.textContent = `You were defeated in ${runState.dungeon.name} on stage ${runState.stage}. No EXP is awarded; start a new dungeon to try again.`;
   } else if (runState?.phase === 'complete') {
-    status.textContent = `Dungeon cleared! You earned ${runState.dungeon.rewardExp} EXP.`;
+    status.textContent = `Dungeon cleared! You earned ${runState.lastExpAwarded} EXP.`;
   } else if (runState?.phase === 'loot') {
-    status.textContent = `Stage ${runState.stage} cleared. Choose one item to continue.`;
+    status.textContent = `Stage ${runState.stage} cleared! You earned ${runState.lastExpAwarded} EXP. Choose one item to continue.`;
   } else if (runState?.phase === 'clearing') {
     status.textContent = `Stage ${runState.stage} defeated. Resolving the stage…`;
   } else {
@@ -233,13 +303,25 @@ function render(gameState) {
 function renderControls() {
   const active = runState?.phase === 'active';
   const handInProgress = currentGame?.status === 'playing';
+  const awaitingWager = active && !handInProgress && !startingHand;
   const stageComplete = runState?.phase === 'loot';
   const canDoubleDown = currentGame?.playerHand.length === 2 && !currentGame?.doubledDown;
   hitButton.disabled = startingHand || !active || !handInProgress;
   standButton.disabled = startingHand || !active || !handInProgress;
   doubleDownButton.disabled = startingHand || !active || !handInProgress || !canDoubleDown;
+  wagerPanel.hidden = !awaitingWager;
+  for (const button of wagerButtons) {
+    const percentage = Number(button.dataset.wager);
+    const stake = Math.ceil((runState?.playerHp ?? 0) * percentage);
+    if (percentage > 0) {
+      button.textContent = `Bet ${percentage * 100}% HP (${stake} HP) · +${percentage * 200}% damage`;
+    }
+    button.disabled = startingHand || !awaitingWager
+      || (percentage > 0 && stake >= (runState?.playerHp ?? 0));
+  }
   newGameButton.disabled = startingHand || resolvingStage
     || (runState?.phase === 'clearing' ? false : !active || handInProgress);
+  newGameButton.hidden = awaitingWager;
   suggestedLevel.textContent = `Level ${runState?.suggestedLevel ?? suggestedCharacterLevel()}`;
   lootPanel.hidden = !stageComplete;
   renderItemInventory();
@@ -311,17 +393,33 @@ function clearCurrentHand() {
   game?.scene.getScene('blackjack')?.clearHand();
 }
 
-async function startHand() {
+async function startHand(percentage) {
   if (startingHand) {
     return;
   }
+  if (![0, 0.1, 0.25, 0.5].includes(percentage) || !runState || runState.phase !== 'active') {
+    return;
+  }
   startingHand = true;
+  const hpStake = Math.ceil(runState.playerHp * percentage);
+  if (percentage > 0 && hpStake >= runState.playerHp) {
+    startingHand = false;
+    status.textContent = 'You need at least 1 HP remaining after the wager.';
+    renderControls();
+    return;
+  }
+  runState.playerHp -= hpStake;
+  runState.activeWager = percentage > 0 ? { percentage, hpStake } : null;
   try {
     clearCurrentHand();
     renderControls();
     status.textContent = 'Dealing your opening hand…';
     const { game: newGame } = await request('/api/games', { method: 'POST' });
     render(newGame);
+  } catch (error) {
+    runState.playerHp += hpStake;
+    runState.activeWager = null;
+    throw error;
   } finally {
     startingHand = false;
     renderControls();
@@ -345,6 +443,7 @@ async function syncStageClear() {
       currentStats = result.stats;
       applyTotalExp(result.stats.totalExp);
     }
+    runState.lastExpAwarded = result.expAwarded;
     if (stage === currentStageCount()) {
       await removeDungeonSession(runState.dungeonId, currentGame?.id);
     }
@@ -358,9 +457,9 @@ async function syncStageClear() {
     }
     renderProgression();
     if (finalStage) {
-      status.textContent = `Dungeon cleared! You earned ${runState.dungeon.rewardExp} EXP.`;
+      status.textContent = `Dungeon cleared! You earned ${result.expAwarded} EXP.`;
     } else {
-      status.textContent = `Stage ${stage} cleared. Choose one item to continue.`;
+      status.textContent = `Stage ${stage} cleared! You earned ${result.expAwarded} EXP. Choose one item to continue.`;
     }
   } finally {
     resolvingStage = false;
@@ -389,7 +488,8 @@ async function beginDungeon(selectedDungeon) {
       }),
     });
     runState = initialRunState(selectedDungeon, dungeon);
-    await startHand();
+    renderControls();
+    status.textContent = 'Choose an HP wager or skip to start your hand.';
   } catch (error) {
     console.error(error);
     status.textContent = `Could not enter the dungeon: ${error.message}`;
@@ -420,16 +520,9 @@ async function chooseItem(itemId) {
   runState.monsterHp = maximumMonsterHealth();
   runState.phase = 'active';
   runState.lastRoundMessage = '';
-  try {
-    await startHand();
-  } catch (error) {
-    console.error(error);
-    status.textContent = `Could not start stage ${runState.stage}: ${error.message}`;
-    renderControls();
-  } finally {
-    resolvingStage = false;
-    renderControls();
-  }
+  resolvingStage = false;
+  renderControls();
+  status.textContent = 'Choose an HP wager or skip to start your hand.';
 }
 
 async function enterGame(account) {
@@ -448,7 +541,7 @@ async function startGame(selectedDungeon) {
   quitButton.disabled = true;
   try {
     screens.show('dungeon');
-    game ??= createBlackjackGame('game');
+    game ??= createBlackjackGame('game', selectedCharacter);
     await beginDungeon(selectedDungeon);
   } finally {
     startGameButton.disabled = false;
@@ -567,14 +660,18 @@ async function nextHand() {
   if (runState?.phase !== 'active' || currentGame?.status === 'playing') {
     return;
   }
-  newGameButton.disabled = true;
-  try {
-    await startHand();
-  } catch (error) {
-    console.error(error);
-    status.textContent = `Could not start the next hand: ${error.message}`;
-    renderControls();
-  }
+}
+
+for (const button of wagerButtons) {
+  button.addEventListener('click', async () => {
+    try {
+      await startHand(Number(button.dataset.wager));
+    } catch (error) {
+      console.error(error);
+      status.textContent = `Could not start the hand: ${error.message}`;
+      renderControls();
+    }
+  });
 }
 
 hitButton.addEventListener('click', () => takeAction('hit'));
@@ -608,6 +705,10 @@ const screens = createScreenController({
     startGame,
     currentStats.level ?? 1,
   ),
+  onOpenSettings: () => {
+    characterSelect.value = selectedCharacter;
+    settingsStatus.textContent = characterSettingsMessage;
+  },
 });
 const auth = createAuthController({
   onAuthenticated: enterGame,

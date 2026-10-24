@@ -65,6 +65,8 @@ export function createGameState() {
   const state = {
     deck,
     dealerHand: [deck.pop(), deck.pop()],
+    hitCount: 0,
+    hitMultiplier: 1.2,
     outcome: null,
     playerHand: [deck.pop(), deck.pop()],
     status: 'playing',
@@ -94,6 +96,12 @@ export function applyAction(state, action) {
   }
 
   if (action === 'hit') {
+    state.hitCount = (state.hitCount ?? 0) + 1;
+    if (state.hitCount > 1) {
+      state.hitMultiplier = Number(((state.hitMultiplier ?? 1.2) + 0.2).toFixed(1));
+    } else {
+      state.hitMultiplier ??= 1.2;
+    }
     state.playerHand.push(state.deck.pop());
     const score = handValue(state.playerHand);
     if (score > 21) {
@@ -138,6 +146,8 @@ export function toPublicGame(id, state, createdAt, updatedAt) {
     status: state.status,
     outcome: state.outcome,
     doubledDown: Boolean(state.doubledDown),
+    hitCount: state.hitCount ?? 0,
+    hitMultiplier: state.hitMultiplier ?? 1.2,
     playerHand: state.playerHand.map(({ rank, suit }) => ({ rank, suit })),
     dealerHand: dealerHand.map((card) => (
       card.hidden ? { hidden: true } : { rank: card.rank, suit: card.suit }

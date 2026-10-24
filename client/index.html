@@ -4,14 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#101a19" />
-    <title>Dungeon Run</title>
+    <title>Blackjack Survivors</title>
   </head>
   <body>
     <main class="game-card">
       <header class="game-header">
         <div>
           <p class="eyebrow">Choose your adventure</p>
-          <h1>Dungeon Run</h1>
+          <h1>Blackjack Survivors</h1>
         </div>
         <p class="rules">Explore unique dungeons, defeat their mobs and bosses.<br />Choose one item after every stage.</p>
       </header>
@@ -30,6 +30,10 @@
             <input id="auth-username" name="username" type="text" autocomplete="username" minlength="3" maxlength="24" pattern="[A-Za-z0-9_]+" />
             <label for="auth-email">Email</label>
             <input id="auth-email" name="email" type="email" autocomplete="email" maxlength="254" />
+            <div class="auth-honeypot" aria-hidden="true">
+              <label for="auth-honeypot">I agree to the terms and conditions</label>
+              <input id="auth-honeypot" name="honeypot" type="checkbox" tabindex="-1" autocomplete="off" />
+            </div>
           </div>
           <label for="auth-password">Password</label>
           <input id="auth-password" name="password" type="password" autocomplete="current-password" minlength="8" maxlength="128" required />
@@ -108,6 +112,15 @@
         </div>
 
         <div id="game-actions" class="actions" hidden>
+          <div id="wager-panel" class="wager-panel" hidden>
+            <p>Choose an HP wager. The stake is spent when chosen; a win adds twice that percentage to your damage.</p>
+            <div class="wager-choices" aria-label="Choose HP wager">
+              <button class="button button-secondary" type="button" data-wager="0.1">Bet 10% HP · +20% damage</button>
+              <button class="button button-secondary" type="button" data-wager="0.25">Bet 25% HP · +50% damage</button>
+              <button class="button button-secondary" type="button" data-wager="0.5">Bet 50% HP · +100% damage</button>
+              <button class="button button-quiet" type="button" data-wager="0">Skip wager · no HP cost or bonus</button>
+            </div>
+          </div>
           <button id="hit-button" class="button button-primary" type="button" disabled>Hit</button>
           <button id="stand-button" class="button button-secondary" type="button" disabled>Stand</button>
           <button id="double-down-button" class="button button-secondary" type="button" disabled>Double down</button>
@@ -175,6 +188,21 @@
               <ol id="monsters-leaderboard-list" class="leaderboard-list"></ol>
             </section>
           </div>
+        </section>
+
+        <section id="settings-screen" class="screen-panel" aria-labelledby="settings-title" hidden>
+          <button class="button button-quiet screen-back" type="button" data-back-to-lobby>Back to game menu</button>
+          <p class="eyebrow">Game preferences</p>
+          <h2 id="settings-title">Settings</h2>
+          <p class="screen-description">Choose the character you want to take into the dungeon.</p>
+          <div class="settings-field">
+            <label for="character-select">Player character</label>
+            <select id="character-select">
+              <option value="adventurer">Adventurer</option>
+              <option value="mel">Mel</option>
+            </select>
+          </div>
+          <p id="settings-status" class="settings-status" role="status" aria-live="polite"></p>
         </section>
 
         <section id="placeholder-screen" class="screen-panel placeholder-screen" hidden>

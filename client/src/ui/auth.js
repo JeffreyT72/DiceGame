@@ -17,6 +17,7 @@ export function createAuthController({
   const authIdentifier = document.querySelector('#auth-identifier');
   const authUsername = document.querySelector('#auth-username');
   const authEmail = document.querySelector('#auth-email');
+  const authHoneypot = document.querySelector('#auth-honeypot');
   const authPassword = document.querySelector('#auth-password');
   const gamePanel = document.querySelector('#game-panel');
   const signoutButton = document.querySelector('#signout-button');
@@ -51,7 +52,12 @@ export function createAuthController({
     try {
       const path = authMode === 'signup' ? '/api/auth/signup' : '/api/auth/login';
       const credentials = authMode === 'signup'
-        ? { username: authUsername.value, email: authEmail.value, password: authPassword.value }
+        ? {
+            username: authUsername.value,
+            email: authEmail.value,
+            password: authPassword.value,
+            honeypot: authHoneypot.checked,
+          }
         : { identifier: authIdentifier.value, password: authPassword.value };
       const account = await request(path, {
         method: 'POST',

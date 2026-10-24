@@ -53,6 +53,7 @@ playerDatabase.exec(`
     email TEXT NOT NULL COLLATE NOCASE UNIQUE,
     password_hash TEXT NOT NULL,
     password_salt TEXT NOT NULL,
+    active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
@@ -107,6 +108,15 @@ playerDatabase.exec(`
 
   CREATE INDEX IF NOT EXISTS player_sessions_expiry_idx ON player_sessions(expires_at);
 `);
+const existingUserColumns = new Set(
+  playerDatabase.prepare('PRAGMA table_info(users)').all().map(({ name }) => name),
+);
+if (!existingUserColumns.has('active')) {
+  playerDatabase.exec(`
+    ALTER TABLE users
+    ADD COLUMN active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1))
+  `);
+}
 const dungeonRunsSchema = playerDatabase.prepare(`
   SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'dungeon_runs'
 `).get()?.sql ?? '';
@@ -523,11 +533,16 @@ function requirePlayer(request, response, next) {
   }
 
   const session = playerDatabase.prepare(`
-    SELECT user_id AS userId FROM player_sessions
-    WHERE token_hash = ? AND expires_at > ?
+    SELECT player_sessions.user_id AS userId, users.active
+    FROM player_sessions
+    JOIN users ON users.id = player_sessions.user_id
+    WHERE player_sessions.token_hash = ? AND player_sessions.expires_at > ?
   `).get(hashToken(token), new Date().toISOString());
   if (!session) {
     return response.status(401).json({ error: 'Your session has expired. Please sign in again.' });
+  }
+  if (session.active !== 1) {
+    return response.status(403).json({ error: 'This account is inactive.' });
   }
 
   request.playerId = session.userId;
@@ -535,6 +550,10 @@ function requirePlayer(request, response, next) {
 }
 
 app.post('/api/auth/signup', async (request, response) => {
+  if (request.body?.honeypot === true || request.body?.honeypot === 'true' || request.body?.honeypot === 'on') {
+    return response.status(400).json({ error: 'Unable to create account.' });
+  }
+
   const username = typeof request.body?.username === 'string' ? request.body.username.trim() : '';
   const email = typeof request.body?.email === 'string' ? request.body.email.trim().toLowerCase() : '';
   const password = typeof request.body?.password === 'string' ? request.body.password : '';
@@ -554,8 +573,8 @@ app.post('/api/auth/signup', async (request, response) => {
   try {
     const createAccount = playerDatabase.transaction(() => {
       playerDatabase.prepare(`
-        INSERT INTO users (id, username, email, password_hash, password_salt)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO users (id, username, email, password_hash, password_salt, active)
+        VALUES (?, ?, ?, ?, ?, 1)
       `).run(userId, username, email, passwordHash.toString('hex'), salt);
       playerDatabase.prepare('INSERT INTO player_stats (user_id) VALUES (?)').run(userId);
     });
@@ -586,7 +605,7 @@ app.post('/api/auth/login', async (request, response) => {
   }
 
   const user = playerDatabase.prepare(`
-    SELECT id, password_hash AS passwordHash, password_salt AS passwordSalt
+    SELECT id, password_hash AS passwordHash, password_salt AS passwordSalt, active
     FROM users WHERE username = ? OR email = ?
   `).get(identifier, identifier);
   if (!user) {
@@ -604,6 +623,10 @@ app.post('/api/auth/login', async (request, response) => {
       return response.status(429).json({ error: `Too many failed login attempts. Please try again in ${secondsRemaining} seconds.` });
     }
     return response.status(401).json({ error: 'Username/email or password is incorrect.' });
+  }
+
+  if (user.active !== 1) {
+    return response.status(403).json({ error: 'This account is inactive.' });
   }
 
   clearFailedLoginAttempts(identifier);
@@ -633,12 +656,14 @@ app.get('/api/player/leaderboard', requirePlayer, (_request, response) => {
     SELECT users.username, COALESCE(player_stats.total_exp, 0) AS totalExp
     FROM users
     LEFT JOIN player_stats ON player_stats.user_id = users.id
+    WHERE users.active = 1
     ORDER BY totalExp DESC, users.username COLLATE NOCASE ASC
   `).all();
   const monstersDefeated = playerDatabase.prepare(`
     SELECT users.username, COALESCE(player_stats.monsters_defeated, 0) AS monstersDefeated
     FROM users
     LEFT JOIN player_stats ON player_stats.user_id = users.id
+    WHERE users.active = 1
     ORDER BY monstersDefeated DESC, users.username COLLATE NOCASE ASC
   `).all();
   response.json({ experience, monstersDefeated });
@@ -792,21 +817,27 @@ app.post('/api/dungeons/:id/clear-stage', requirePlayer, (request, response) => 
       WHERE id = ? AND user_id = ?
     `).run(stage, Number(stage === stageCount), request.params.id, request.playerId);
 
-    if (stage === stageCount) {
-      playerDatabase.prepare(`
-        UPDATE player_stats
-        SET total_exp = total_exp + ?,
-          monsters_defeated = monsters_defeated + ?,
-          updated_at = datetime('now')
-        WHERE user_id = ?
-      `).run(selectedDungeon.rewardExp, stageCount, request.playerId);
-    }
+    const stats = playerDatabase.prepare(`
+      SELECT total_exp AS totalExp FROM player_stats WHERE user_id = ?
+    `).get(request.playerId);
+    const killExp = getLevel(stats.totalExp) * 3;
+    const completionBonus = stage === stageCount ? selectedDungeon.rewardExp : 0;
+    const expAwarded = killExp + completionBonus;
+    playerDatabase.prepare(`
+      UPDATE player_stats
+      SET total_exp = total_exp + ?,
+        monsters_defeated = monsters_defeated + 1,
+        updated_at = datetime('now')
+      WHERE user_id = ?
+    `).run(expAwarded, request.playerId);
+    return expAwarded;
   });
-  clearStage();
+  const expAwarded = clearStage();
 
   response.json({
     dungeon: dungeonRun(request.params.id, request.playerId),
     stats: playerStats(request.playerId),
+    expAwarded,
   });
 });
 
