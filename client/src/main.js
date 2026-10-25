@@ -28,6 +28,7 @@ let currentStats = {
   agility: 0,
   constitution: 0,
   luck: 0,
+  currency: 0,
   availableStatPoints: 0,
 };
 let runState = null;
@@ -47,6 +48,7 @@ const dungeonProgress = document.querySelector('#dungeon-progress');
 const battlefield = document.querySelector('#battlefield');
 const lootPanel = document.querySelector('#loot-panel');
 const accountName = document.querySelector('#account-name');
+const lobbyCurrency = document.querySelector('#lobby-currency');
 const characterSelect = document.querySelector('#character-select');
 const settingsStatus = document.querySelector('#settings-status');
 const characterPreferenceKey = 'dungeon-run-character';
@@ -120,6 +122,10 @@ function applyTotalExp(totalExp) {
   currentStats.totalExp = totalExp;
   currentStats.level = level;
   currentStats.expIntoLevel = remainingExp;
+}
+
+function renderCurrency() {
+  lobbyCurrency.textContent = new Intl.NumberFormat().format(currentStats.currency);
 }
 
 function currentMonster() {
@@ -302,6 +308,7 @@ async function syncStageClear() {
     if (result.stats) {
       currentStats = result.stats;
       applyTotalExp(result.stats.totalExp);
+      renderCurrency();
     }
     runState.lastExpAwarded = result.expAwarded;
     if (stage === currentStageCount()) {
@@ -391,6 +398,7 @@ async function enterGame(account) {
   currentPlayer = account.user;
   currentStats = account.stats;
   applyTotalExp(account.stats.totalExp);
+  renderCurrency();
   accountName.textContent = currentPlayer.username;
   screens.show('lobby');
   renderProgression();
@@ -506,6 +514,7 @@ const characterLab = createCharacterLab({
   getStats: () => currentStats,
   setStats: (stats) => {
     currentStats = stats;
+    renderCurrency();
   },
   getRunState: () => runState,
   maximumHealth,

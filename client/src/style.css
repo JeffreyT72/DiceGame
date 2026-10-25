@@ -468,7 +468,8 @@ h1 {
   color: #b4d282;
 }
 
-.lobby-level {
+.lobby-level,
+.lobby-currency {
   margin: 0 0 18px;
   padding: 16px;
   border: 1px solid #35473e;
@@ -477,7 +478,8 @@ h1 {
   color: #aebbb3;
 }
 
-.lobby-level strong {
+.lobby-level strong,
+.lobby-currency strong {
   float: right;
   color: #b4d282;
 }

@@ -361,10 +361,60 @@ class CardScene extends BlackjackScene {
     backdrop.lineStyle(1, 0x2e7757, 0.8);
     backdrop.lineBetween(42, 245, 818, 245);
     this.handLayer = this.add.container(0, 0);
+    this.hitCounter = this.add.container(430, 245).setVisible(false);
+    this.hitCounter.add(this.add.rectangle(0, 0, 250, 38, 0x173328, 0.96)
+      .setStrokeStyle(2, 0xb4d282));
+    this.hitCounter.add(this.add.text(0, 0, '', {
+      color: '#e8f6c7',
+      fontFamily: 'Arial, sans-serif',
+      fontSize: '15px',
+      fontStyle: 'bold',
+    }).setOrigin(0.5));
     if (this.pendingGame) {
       this.renderGame(this.pendingGame);
       this.pendingGame = null;
     }
+  }
+
+  renderGame(game) {
+    super.renderGame(game);
+    this.updateHitCounter(game);
+  }
+
+  updateHitCounter(game) {
+    if (!this.hitCounter) {
+      return;
+    }
+    const hitCount = game.hitCount ?? 0;
+    if (hitCount < 1) {
+      this.hitCounter.setVisible(false);
+      this.lastDisplayedHitCount = 0;
+      return;
+    }
+
+    this.hitCounter.getAt(1).setText(
+      `HITS ${hitCount}  ·  DAMAGE x${game.hitMultiplier.toFixed(1)}`,
+    );
+    if (hitCount > (this.lastDisplayedHitCount ?? 0)) {
+      this.tweens.killTweensOf(this.hitCounter);
+      this.hitCounter.setVisible(true).setAlpha(0).setScale(0.8);
+      this.tweens.add({
+        targets: this.hitCounter,
+        alpha: 1,
+        scale: 1,
+        duration: 260,
+        ease: 'Back.Out',
+      });
+    } else {
+      this.hitCounter.setVisible(true);
+    }
+    this.lastDisplayedHitCount = hitCount;
+  }
+
+  clearHand() {
+    super.clearHand();
+    this.hitCounter?.setVisible(false);
+    this.lastDisplayedHitCount = 0;
   }
 }
 

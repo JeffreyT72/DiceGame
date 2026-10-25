@@ -64,6 +64,7 @@ playerDatabase.exec(`
     agility INTEGER NOT NULL DEFAULT 0 CHECK (agility >= 0),
     constitution INTEGER NOT NULL DEFAULT 0 CHECK (constitution >= 0),
     luck INTEGER NOT NULL DEFAULT 0 CHECK (luck >= 0),
+    currency INTEGER NOT NULL DEFAULT 0 CHECK (currency >= 0),
     games_played INTEGER NOT NULL DEFAULT 0 CHECK (games_played >= 0),
     wins INTEGER NOT NULL DEFAULT 0 CHECK (wins >= 0),
     losses INTEGER NOT NULL DEFAULT 0 CHECK (losses >= 0),
@@ -171,7 +172,7 @@ if (
 const existingPlayerStatColumns = new Set(
   playerDatabase.prepare('PRAGMA table_info(player_stats)').all().map(({ name }) => name),
 );
-for (const column of ['strength', 'agility', 'constitution', 'luck']) {
+for (const column of ['strength', 'agility', 'constitution', 'luck', 'currency']) {
   if (!existingPlayerStatColumns.has(column)) {
     playerDatabase.exec(`ALTER TABLE player_stats ADD COLUMN ${column} INTEGER NOT NULL DEFAULT 0 CHECK (${column} >= 0)`);
   }
@@ -507,6 +508,7 @@ function publicAccount(userId) {
   const account = playerDatabase.prepare(`
     SELECT users.id, users.username, users.email, player_stats.total_exp AS totalExp,
       player_stats.strength, player_stats.agility, player_stats.constitution, player_stats.luck,
+      player_stats.currency,
       player_stats.games_played AS gamesPlayed, player_stats.wins,
       player_stats.losses, player_stats.pushes,
       player_stats.monsters_defeated AS monstersDefeated
@@ -854,7 +856,7 @@ app.post('/api/dungeons/:id/clear-stage', requirePlayer, (request, response) => 
 function playerStats(userId) {
   const stats = playerDatabase.prepare(`
     SELECT total_exp AS totalExp, games_played AS gamesPlayed, wins, losses, pushes,
-      monsters_defeated AS monstersDefeated, strength, agility, constitution, luck
+      monsters_defeated AS monstersDefeated, strength, agility, constitution, luck, currency
     FROM player_stats WHERE user_id = ?
   `).get(userId);
   if (!stats) {
