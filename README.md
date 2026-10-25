@@ -23,7 +23,7 @@ npm run build
 npm start
 ```
 
-The server serves the built frontend and API from <http://localhost:3000>.
+The server serves the built frontend and API from <http://localhost:3000> in local development. In production, HTTP requests are redirected to HTTPS. When TLS terminates at a reverse proxy or tunnel, it must overwrite and forward `X-Forwarded-Proto`; the server redirects unless its value is `https`. The tunnel-to-container connection can remain HTTP on its private network.
 
 ## Dungeon rules
 

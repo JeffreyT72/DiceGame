@@ -420,6 +420,16 @@ const generalRateLimiter = createRateLimiter({
 });
 
 app.disable('x-powered-by');
+app.use((request, response, next) => {
+  const forwardedProtocol = request.get('x-forwarded-proto')
+    ?.split(',')[0]
+    .trim()
+    .toLowerCase();
+  if (isProduction && !request.secure && forwardedProtocol !== 'https') {
+    return response.redirect(308, `https://${request.get('host')}${request.originalUrl}`);
+  }
+  next();
+});
 app.use(generalRateLimiter);
 app.use(securityHeaders);
 app.use(express.json({ limit: '16kb' }));
