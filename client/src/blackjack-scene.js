@@ -16,6 +16,7 @@ class BlackjackScene extends Phaser.Scene {
   constructor() {
     super('blackjack');
     this.pendingGame = null;
+    this.pendingBattlefield = null;
     this.combatState = { playerHp: 100, monsterHp: 100 };
     this.selectedCharacter = 'adventurer';
     this.heroSprite = null;
@@ -34,16 +35,15 @@ class BlackjackScene extends Phaser.Scene {
     this.setCharacter(this.registry.get('selectedCharacter') ?? 'adventurer');
     this.drawBattlefield();
     this.healthLayer = this.add.container(0, 0);
-    this.handLayer = this.add.container(0, 0);
-    this.stageText = this.add.text(430, 245, 'DUNGEON · STAGE 1 / 10', {
+    this.stageText = this.add.text(430, 42, 'DUNGEON · STAGE 1 / 10', {
       color: '#b4d282',
       fontFamily: 'Arial, sans-serif',
-      fontSize: '15px',
+      fontSize: '16px',
       fontStyle: 'bold',
     }).setOrigin(0.5);
-    if (this.pendingGame) {
-      this.renderGame(this.pendingGame, this.combatState);
-      this.pendingGame = null;
+    if (this.pendingBattlefield) {
+      this.renderBattlefield(this.pendingBattlefield);
+      this.pendingBattlefield = null;
     }
   }
 
@@ -105,34 +105,35 @@ class BlackjackScene extends Phaser.Scene {
       this.heroSprite.setTexture(`hero-idle-${character.id}`, 'idle-0');
       this.heroSprite.play(`hero-idle-${character.id}`);
     }
+    this.heroLabel?.setText(character.name.toUpperCase());
   }
 
   drawBattlefield() {
     const backdrop = this.add.graphics();
     backdrop.fillStyle(0x084632, 1);
-    backdrop.fillRoundedRect(24, 20, 812, 222, 20);
+    backdrop.fillRoundedRect(24, 20, 812, 450, 20);
     backdrop.lineStyle(2, 0x4c9470, 0.8);
-    backdrop.strokeRoundedRect(24, 20, 812, 222, 20);
+    backdrop.strokeRoundedRect(24, 20, 812, 450, 20);
     backdrop.fillStyle(0x0a523d, 1);
-    backdrop.fillCircle(210, 132, 82);
-    backdrop.fillCircle(650, 132, 82);
+    backdrop.fillCircle(210, 290, 128);
+    backdrop.fillCircle(650, 290, 128);
     backdrop.lineStyle(1, 0x2e7757, 0.8);
-    backdrop.strokeCircle(210, 132, 82);
-    backdrop.strokeCircle(650, 132, 82);
+    backdrop.strokeCircle(210, 290, 128);
+    backdrop.strokeCircle(650, 290, 128);
 
-    this.drawHero(210, 141);
-    this.monsterSprite = this.drawMonster(650, 141);
+    this.drawHero(210, 292);
+    this.monsterSprite = this.drawMonster(650, 292);
 
-    this.add.text(210, 34, 'HERO', {
+    this.heroLabel = this.add.text(210, 140, this.selectedCharacter.toUpperCase(), {
       color: '#e9f5ed',
       fontFamily: 'Arial, sans-serif',
-      fontSize: '15px',
+      fontSize: '17px',
       fontStyle: 'bold',
     }).setOrigin(0.5);
-    this.add.text(650, 34, 'MONSTER', {
+    this.add.text(650, 140, 'MONSTER', {
       color: '#ffd8c9',
       fontFamily: 'Arial, sans-serif',
-      fontSize: '15px',
+      fontSize: '17px',
       fontStyle: 'bold',
     }).setOrigin(0.5);
   }
@@ -144,7 +145,7 @@ class BlackjackScene extends Phaser.Scene {
       y,
       `hero-idle-${this.selectedCharacter}`,
       'idle-0',
-    ).play(`hero-idle-${this.selectedCharacter}`);
+    ).setScale(1.25).play(`hero-idle-${this.selectedCharacter}`);
   }
 
   drawMonster(x, y) {
@@ -170,28 +171,13 @@ class BlackjackScene extends Phaser.Scene {
     return monster;
   }
 
-  renderGame(game, combatState = this.combatState) {
-    this.combatState = combatState;
+  renderGame(game) {
     if (!this.handLayer) {
       this.pendingGame = game;
       return;
     }
 
-    this.healthLayer.removeAll(true);
     this.handLayer.removeAll(true);
-    this.addHealthBar('Hero', combatState.playerHp, combatState.playerMaxHp ?? 100, 42, 88, 0x91c977);
-    this.addHealthBar(
-      combatState.monsterName ?? (combatState.boss ? 'BOSS' : 'MOB'),
-      combatState.monsterHp,
-      combatState.monsterMaxHp ?? 40,
-      596,
-      88,
-      0xd46d5e,
-    );
-    this.monsterSprite.setScale(combatState.boss ? 1.3 : 1);
-    this.stageText.setText(
-      `DUNGEON · STAGE ${combatState.stage ?? 1} / ${combatState.stageCount ?? 1}${combatState.boss ? ' · BOSS' : ''}`,
-    );
     const sameGame = game.id === this.renderedGameId;
     const dealerDrawStart = sameGame ? this.renderedCardCounts.dealer : 0;
     const playerDrawStart = sameGame ? this.renderedCardCounts.player : 0;
@@ -200,6 +186,31 @@ class BlackjackScene extends Phaser.Scene {
       dealer: game.dealerHand.length,
       player: game.playerHand.length,
     };
+    this.addHand('Dealer', game.dealerHand, game.dealerScore, 150, 98, dealerDrawStart);
+    this.addHand('You', game.playerHand, game.playerScore, 340, 286, playerDrawStart);
+  }
+
+  renderBattlefield(combatState = this.combatState) {
+    this.combatState = combatState;
+    if (!this.healthLayer) {
+      this.pendingBattlefield = combatState;
+      return;
+    }
+
+    this.healthLayer.removeAll(true);
+    this.addHealthBar('Hero', combatState.playerHp, combatState.playerMaxHp ?? 100, 42, 88, 0x91c977);
+    this.addHealthBar(
+      combatState.monsterName ?? (combatState.boss ? 'BOSS' : 'MOB'),
+      combatState.monsterHp,
+      combatState.monsterMaxHp ?? 40,
+      476,
+      88,
+      0xd46d5e,
+    );
+    this.monsterSprite.setScale(combatState.boss ? 1.45 : 1.2);
+    this.stageText.setText(
+      `DUNGEON · STAGE ${combatState.stage ?? 1} / ${combatState.stageCount ?? 1}${combatState.boss ? ' · BOSS' : ''}`,
+    );
     if (
       combatState.damageEvent
       && combatState.damageEvent.gameId !== this.lastDamageGameId
@@ -207,12 +218,10 @@ class BlackjackScene extends Phaser.Scene {
       this.lastDamageGameId = combatState.damageEvent.gameId;
       this.showDamageEffect(combatState.damageEvent);
     }
-    this.addHand('Dealer', game.dealerHand, game.dealerScore, 298, 262, dealerDrawStart);
-    this.addHand('You', game.playerHand, game.playerScore, 394, 358, playerDrawStart);
   }
 
   showDamageEffect({ damage, hitCount, hitMultiplier }) {
-    const effect = this.add.container(650, 178);
+    const effect = this.add.container(650, 248);
     effect.add(this.add.text(0, -10, `-${damage} HP`, {
       color: '#ffe58a',
       fontFamily: 'Arial, sans-serif',
@@ -233,7 +242,7 @@ class BlackjackScene extends Phaser.Scene {
     effect.setAlpha(0.7).setScale(0.8);
     this.tweens.add({
       targets: effect,
-      y: 105,
+      y: 175,
       alpha: 0,
       scale: 1.05,
       duration: 900,
@@ -338,14 +347,35 @@ class BlackjackScene extends Phaser.Scene {
   }
 }
 
-export function createBlackjackGame(parent, selectedCharacter = 'adventurer') {
+class CardScene extends BlackjackScene {
+  preload() {
+    // The cards-only scene does not need the character sprite sheets.
+  }
+
+  create() {
+    const backdrop = this.add.graphics();
+    backdrop.fillStyle(0x084632, 1);
+    backdrop.fillRoundedRect(24, 20, 812, 450, 20);
+    backdrop.lineStyle(2, 0x4c9470, 0.8);
+    backdrop.strokeRoundedRect(24, 20, 812, 450, 20);
+    backdrop.lineStyle(1, 0x2e7757, 0.8);
+    backdrop.lineBetween(42, 245, 818, 245);
+    this.handLayer = this.add.container(0, 0);
+    if (this.pendingGame) {
+      this.renderGame(this.pendingGame);
+      this.pendingGame = null;
+    }
+  }
+}
+
+function createGame(parent, scene, selectedCharacter) {
   const game = new Phaser.Game({
     type: Phaser.AUTO,
     width: 860,
     height: 490,
     parent,
     backgroundColor: '#0b5b43',
-    scene: BlackjackScene,
+    scene,
     scale: {
       mode: Phaser.Scale.FIT,
       autoCenter: Phaser.Scale.CENTER_BOTH,
@@ -359,4 +389,11 @@ export function createBlackjackGame(parent, selectedCharacter = 'adventurer') {
   });
   game.registry.set('selectedCharacter', selectedCharacter);
   return game;
+}
+
+export function createBlackjackGame(cardParent, battlefieldParent, selectedCharacter = 'adventurer') {
+  return {
+    cards: createGame(cardParent, CardScene, selectedCharacter),
+    battlefield: createGame(battlefieldParent, BlackjackScene, selectedCharacter),
+  };
 }

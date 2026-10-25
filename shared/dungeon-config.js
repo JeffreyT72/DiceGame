@@ -47,7 +47,7 @@ export const dungeons = [
       monster('elder-stag', 'Elder Stag', 45, 8, 4),
       monster('hollow-guardian', 'Hollow Guardian', 55, 9, 6),
     ],
-    boss: monster('cavern-wyrm', 'Cavern Wyrm', 210, 22, 12),
+    boss: monster('dread-wyrm', 'Dread Wyrm', 210, 22, 12),
   },
 ];
 
@@ -56,15 +56,30 @@ export function getDungeon(dungeonId) {
 }
 
 export function getDungeonStageCount(dungeon) {
-  return dungeon.stages;
+  return dungeon && Number.isInteger(dungeon.stages) && dungeon.stages > 0
+    ? dungeon.stages
+    : 0;
 }
 
 export function getDungeonMonster(dungeon, stage) {
-  return stage === getDungeonStageCount(dungeon)
-    ? dungeon.boss
-    : dungeon.mobs[(stage - 1) % dungeon.mobs.length];
+  if (!dungeon || !Array.isArray(dungeon.mobs) || dungeon.mobs.length === 0) {
+    return undefined;
+  }
+  if (!Number.isInteger(stage) || stage < 1) {
+    return undefined;
+  }
+
+  if (stage === getDungeonStageCount(dungeon)) {
+    return dungeon.boss;
+  }
+
+  return dungeon.mobs[(stage - 1) % dungeon.mobs.length];
 }
 
 export function meetsDungeonLevelRequirement(dungeon, playerLevel) {
+  if (!dungeon || !Number.isFinite(playerLevel)) {
+    return false;
+  }
+
   return playerLevel >= dungeon.levelRequirement;
 }

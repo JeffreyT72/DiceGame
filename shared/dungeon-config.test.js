@@ -32,6 +32,15 @@ test('dungeon lookup returns only configured dungeons', () => {
   assert.equal(getDungeon('unknown-dungeon'), undefined);
 });
 
+test('monster IDs are unique and invalid dungeon lookups fail safely', () => {
+  const monsterIds = dungeons.flatMap((dungeon) => [...dungeon.mobs, dungeon.boss].map(({ id }) => id));
+
+  assert.equal(new Set(monsterIds).size, monsterIds.length);
+  assert.equal(getDungeonMonster(undefined, 1), undefined);
+  assert.equal(getDungeonStageCount(undefined), 0);
+  assert.equal(meetsDungeonLevelRequirement(undefined, 1), false);
+});
+
 test('dungeons repeat mob encounters until the configured final boss stage', () => {
   const dungeon = getDungeon('ember-cavern');
 

@@ -25,7 +25,7 @@ body {
 }
 
 .game-card {
-  width: min(100%, 900px);
+  width: min(100%, 1500px);
   padding: clamp(22px, 5vw, 42px);
   border: 1px solid #31423b;
   border-radius: 24px;
@@ -74,15 +74,55 @@ h1 {
 }
 
 #game,
-#game canvas {
+#game canvas,
+#battlefield-game,
+#battlefield-game canvas {
   display: block;
   width: 100%;
   height: auto;
 }
 
+.dungeon-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 20px;
+}
+
+.play-card,
+.battlefield-card {
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid #31423b;
+  border-radius: 18px;
+  background: #131e1a;
+  box-shadow: 0 12px 32px #0002;
+}
+
+.play-card .table {
+  margin: 0;
+}
+
+.battlefield-table {
+  margin: 16px 0;
+}
+
+.battlefield-player-level {
+  margin: 0;
+  color: #aebbb3;
+  font-size: 0.9rem;
+}
+
+.battlefield-player-level strong {
+  display: block;
+  margin-top: 6px;
+  color: #b4d282;
+  font-size: 1rem;
+}
+
 .status {
-  min-height: 52px;
-  margin: 18px 0;
+  min-height: 46px;
+  margin: 14px 0;
   color: #d1d9d2;
   font-size: 0.98rem;
   font-weight: 600;
@@ -660,7 +700,7 @@ h1 {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  margin: 22px 0 8px;
+  margin: 0 0 8px;
   padding: 14px;
   border: 1px solid #35473e;
   border-radius: 12px;
@@ -691,7 +731,7 @@ h1 {
 }
 
 .dungeon-progress {
-  margin: 14px 0;
+  margin: 10px 0;
   color: #b4d282;
   font-size: 0.95rem;
   font-weight: 700;
@@ -699,7 +739,7 @@ h1 {
 }
 
 .item-inventory {
-  margin: 14px 0;
+  margin: 12px 0 0;
   padding: 14px 16px;
   border: 1px solid #35473e;
   border-radius: 12px;
@@ -834,6 +874,11 @@ h1 {
     padding: 20px 14px;
   }
 
+  .play-card,
+  .battlefield-card {
+    padding: 12px;
+  }
+
   .account-bar {
     align-items: flex-start;
   }
@@ -852,5 +897,11 @@ h1 {
 
   .loot-choice {
     min-height: 80px;
+  }
+}
+
+@media (max-width: 1000px) {
+  .dungeon-layout {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

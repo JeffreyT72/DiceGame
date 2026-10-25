@@ -44,7 +44,7 @@ const wagerButtons = document.querySelectorAll('[data-wager]');
 const suggestedLevel = document.querySelector('#suggested-level');
 const status = document.querySelector('#status');
 const dungeonProgress = document.querySelector('#dungeon-progress');
-const table = document.querySelector('#table');
+const battlefield = document.querySelector('#battlefield');
 const lootPanel = document.querySelector('#loot-panel');
 const accountName = document.querySelector('#account-name');
 const characterSelect = document.querySelector('#character-select');
@@ -66,7 +66,7 @@ try {
 characterSelect.addEventListener('change', () => {
   selectedCharacter = characterSelect.value;
   const character = characters.find(({ id }) => id === selectedCharacter);
-  game?.scene.getScene('blackjack')?.setCharacter(selectedCharacter);
+  game?.battlefield.scene.getScene('blackjack')?.setCharacter(selectedCharacter);
 
   try {
     window.localStorage.setItem(characterPreferenceKey, selectedCharacter);
@@ -134,6 +134,30 @@ function maximumMonsterHealth() {
   return currentMonster()?.hp ?? 0;
 }
 
+function renderBattlefield() {
+  if (!game) {
+    return;
+  }
+  const monster = currentMonster();
+  const stageCount = currentStageCount();
+  const boss = Boolean(runState && runState.stage === stageCount);
+  game.battlefield.scene.getScene('blackjack')?.renderBattlefield({
+    playerHp: runState?.playerHp ?? maximumHealth(),
+    playerMaxHp: maximumHealth(),
+    monsterHp: runState?.monsterHp ?? monster?.hp ?? 0,
+    monsterMaxHp: maximumMonsterHealth(),
+    monsterName: monster?.name ?? 'Monster',
+    damageEvent: runState?.lastDamageEvent ?? null,
+    stage: runState?.stage ?? 1,
+    stageCount,
+    boss,
+  });
+  battlefield.setAttribute(
+    'aria-label',
+    `Stage ${runState?.stage ?? 1} of ${stageCount}${boss ? ', boss' : ''}. Hero health ${runState?.playerHp ?? maximumHealth()} of ${maximumHealth()}. ${monster?.name ?? 'Monster'} health ${runState?.monsterHp ?? monster?.hp ?? 0}.`,
+  );
+}
+
 function render(gameState) {
   currentGame = gameState;
   resolveCombatRound(gameState, {
@@ -153,28 +177,12 @@ function render(gameState) {
       renderControls();
     },
   });
-  const monster = currentMonster();
-  const stageCount = currentStageCount();
-  const boss = Boolean(runState && runState.stage === stageCount);
   if (game) {
-    game.scene.getScene('blackjack')?.renderGame(gameState, {
-      playerHp: runState?.playerHp ?? maximumHealth(),
-      playerMaxHp: maximumHealth(),
-      monsterHp: runState?.monsterHp ?? monster?.hp ?? 0,
-      monsterMaxHp: maximumMonsterHealth(),
-      monsterName: monster?.name ?? 'Monster',
-      damageEvent: runState?.lastDamageEvent ?? null,
-      stage: runState?.stage ?? 1,
-      stageCount,
-      boss,
-    });
+    game.cards.scene.getScene('blackjack')?.renderGame(gameState);
   }
+  renderBattlefield();
   renderProgression();
   renderControls();
-  table.setAttribute(
-    'aria-label',
-    `Stage ${runState?.stage ?? 1} of ${stageCount}${boss ? ', boss' : ''}. Hero health ${runState?.playerHp ?? maximumHealth()} of ${maximumHealth()}. ${monster?.name ?? 'Monster'} health ${runState?.monsterHp ?? monster?.hp ?? 0}.`,
-  );
 
   if (runState?.phase === 'failed') {
     status.textContent = `You were defeated in ${runState.dungeon.name} on stage ${runState.stage}. No EXP is awarded; start a new dungeon to try again.`;
@@ -242,7 +250,7 @@ function renderControls() {
 
 function clearCurrentHand() {
   currentGame = null;
-  game?.scene.getScene('blackjack')?.clearHand();
+  game?.cards.scene.getScene('blackjack')?.clearHand();
 }
 
 async function startHand(percentage) {
@@ -340,6 +348,7 @@ async function beginDungeon(selectedDungeon) {
       }),
     });
     runState = initialRunState(selectedDungeon, dungeon);
+    renderBattlefield();
     renderControls();
     status.textContent = 'Choose an HP wager or skip to start your hand.';
   } catch (error) {
@@ -373,6 +382,7 @@ async function chooseItem(itemId) {
   runState.phase = 'active';
   runState.lastRoundMessage = '';
   resolvingStage = false;
+  renderBattlefield();
   renderControls();
   status.textContent = 'Choose an HP wager or skip to start your hand.';
 }
@@ -393,7 +403,7 @@ async function startGame(selectedDungeon) {
   quitButton.disabled = true;
   try {
     screens.show('dungeon');
-    game ??= createBlackjackGame('game', selectedCharacter);
+    game ??= createBlackjackGame('game', 'battlefield-game', selectedCharacter);
     await beginDungeon(selectedDungeon);
   } finally {
     startGameButton.disabled = false;
@@ -535,7 +545,8 @@ const auth = createAuthController({
     currentPlayer = null;
     currentGame = null;
     runState = null;
-    game?.destroy(true);
+    game?.cards.destroy(true);
+    game?.battlefield.destroy(true);
     game = null;
   },
   onSignOutError: (error) => {

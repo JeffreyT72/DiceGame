@@ -17,6 +17,7 @@ export function createCharacterLab({
   const experienceBar = document.querySelector('#experience-bar');
   const experienceFill = document.querySelector('#experience-fill');
   const lobbyLevel = document.querySelector('#lobby-level');
+  const dungeonPlayerLevel = document.querySelector('#dungeon-player-level');
   let allocatingStat = false;
 
   function renderProgression() {
@@ -25,6 +26,7 @@ export function createCharacterLab({
     const exp = stats.expIntoLevel ?? 0;
     const required = expRequiredForNextLevel(level);
     lobbyLevel.textContent = `Level ${level}`;
+    dungeonPlayerLevel.textContent = `Level ${level}`;
     playerLevel.textContent = `Level ${level}`;
     playerExp.textContent = `${exp} / ${required} EXP`;
     experienceBar.setAttribute('aria-valuemax', String(required));

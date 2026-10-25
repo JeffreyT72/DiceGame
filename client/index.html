@@ -84,48 +84,60 @@
         <section id="dungeon-screen" class="screen-panel" aria-label="Dungeon" hidden>
           <button class="button button-quiet screen-back" type="button" data-back-to-lobby>Back to game menu</button>
 
-        <section class="dungeon-controls" aria-label="Dungeon run setup">
-          <div>
-            <span id="active-dungeon-name"></span>
-            <span>Suggested character level</span>
-            <strong id="suggested-level">Level 1</strong>
+          <div class="dungeon-layout">
+            <section class="play-card" aria-label="Blackjack round">
+              <section id="table" class="table" aria-label="Blackjack card table">
+                <div id="game"></div>
+              </section>
+
+              <p id="status" class="status" role="status" aria-live="polite">Prepare for the dungeon.</p>
+
+              <div id="game-actions" class="actions" hidden>
+                <div id="wager-panel" class="wager-panel" hidden>
+                  <p>Choose an HP wager. The stake is spent when chosen; a win adds twice that percentage to your damage.</p>
+                  <div class="wager-choices" aria-label="Choose HP wager">
+                    <button class="button button-secondary" type="button" data-wager="0.1">Bet 10% HP · +20% damage</button>
+                    <button class="button button-secondary" type="button" data-wager="0.25">Bet 25% HP · +50% damage</button>
+                    <button class="button button-secondary" type="button" data-wager="0.5">Bet 50% HP · +100% damage</button>
+                    <button class="button button-quiet" type="button" data-wager="0">Skip wager · no HP cost or bonus</button>
+                  </div>
+                </div>
+                <button id="hit-button" class="button button-primary" type="button" disabled>Hit</button>
+                <button id="stand-button" class="button button-secondary" type="button" disabled>Stand</button>
+                <button id="double-down-button" class="button button-secondary" type="button" disabled>Double down</button>
+                <button id="new-game-button" class="button button-quiet" type="button" disabled>Next hand</button>
+              </div>
+            </section>
+
+            <aside class="battlefield-card" aria-label="Dungeon battlefield">
+              <section class="dungeon-controls" aria-label="Dungeon run setup">
+                <div>
+                  <span id="active-dungeon-name">Choose a dungeon</span>
+                  <span>Suggested character level</span>
+                  <strong id="suggested-level">Level 1</strong>
+                </div>
+                <p class="battlefield-player-level">Player level <strong id="dungeon-player-level">Level 1</strong></p>
+              </section>
+
+              <p id="dungeon-progress" class="dungeon-progress">Your next run is ready when you are.</p>
+
+              <section id="battlefield" class="table battlefield-table" aria-label="Hero and monster battlefield">
+                <div id="battlefield-game"></div>
+              </section>
+
+              <section class="item-inventory" aria-label="Run items">
+                <h2>Active items</h2>
+                <ul id="active-items" hidden></ul>
+                <p id="empty-inventory">No items collected this run.</p>
+              </section>
+
+              <div id="loot-panel" class="loot-panel" hidden>
+                <h2>Choose one item</h2>
+                <p>Choose one temporary item to use for the rest of this dungeon run.</p>
+                <div id="loot-choices" class="loot-choices"></div>
+              </div>
+            </aside>
           </div>
-        </section>
-
-        <p id="dungeon-progress" class="dungeon-progress">Your next run is ready when you are.</p>
-        <section class="item-inventory" aria-label="Run items">
-          <h2>Active items</h2>
-          <ul id="active-items" hidden></ul>
-          <p id="empty-inventory">No items collected this run.</p>
-        </section>
-
-        <section id="table" class="table" aria-label="Dungeon battlefield">
-          <div id="game"></div>
-        </section>
-
-        <p id="status" class="status" role="status" aria-live="polite">Prepare for the dungeon.</p>
-
-        <div id="loot-panel" class="loot-panel" hidden>
-          <h2>Choose one item</h2>
-          <p>Choose one temporary item to use for the rest of this dungeon run.</p>
-          <div id="loot-choices" class="loot-choices"></div>
-        </div>
-
-        <div id="game-actions" class="actions" hidden>
-          <div id="wager-panel" class="wager-panel" hidden>
-            <p>Choose an HP wager. The stake is spent when chosen; a win adds twice that percentage to your damage.</p>
-            <div class="wager-choices" aria-label="Choose HP wager">
-              <button class="button button-secondary" type="button" data-wager="0.1">Bet 10% HP · +20% damage</button>
-              <button class="button button-secondary" type="button" data-wager="0.25">Bet 25% HP · +50% damage</button>
-              <button class="button button-secondary" type="button" data-wager="0.5">Bet 50% HP · +100% damage</button>
-              <button class="button button-quiet" type="button" data-wager="0">Skip wager · no HP cost or bonus</button>
-            </div>
-          </div>
-          <button id="hit-button" class="button button-primary" type="button" disabled>Hit</button>
-          <button id="stand-button" class="button button-secondary" type="button" disabled>Stand</button>
-          <button id="double-down-button" class="button button-secondary" type="button" disabled>Double down</button>
-          <button id="new-game-button" class="button button-quiet" type="button" disabled>Next hand</button>
-        </div>
         </section>
 
         <section id="lab-screen" class="screen-panel" aria-labelledby="lab-title" hidden>
