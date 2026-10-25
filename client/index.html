@@ -60,7 +60,7 @@
               <strong>Dungeons</strong><span>Browse mobs, bosses, and monster stats</span>
             </button>
             <button id="multiplayer-button" class="lobby-option" type="button">
-              <strong>Multiplayer</strong><span>Coming soon</span>
+              <strong>Multiplayer</strong><span>Create a room or join a party</span>
             </button>
             <button id="lab-button" class="lobby-option" type="button">
               <strong>Lab</strong><span>Perma character stats</span>
@@ -139,6 +139,57 @@
               </div>
             </aside>
           </div>
+        </section>
+
+        <section id="multiplayer-screen" class="screen-panel" aria-labelledby="multiplayer-title" hidden>
+          <button class="button button-quiet screen-back" type="button" data-back-to-lobby>Back to game menu</button>
+          <p class="eyebrow">Blackjack · four seats</p>
+          <h2 id="multiplayer-title">Blackjack Multiplayer</h2>
+          <p class="screen-description">Share a 30-second betting window, then take turns at one table against the shared dealer hand.</p>
+          <div id="multiplayer-entry" class="multiplayer-entry">
+            <button id="multiplayer-create" class="button button-primary" type="button">Create room</button>
+            <form id="multiplayer-join-form" class="multiplayer-join-form">
+              <label for="multiplayer-room-code">Room code</label>
+              <input id="multiplayer-room-code" name="code" maxlength="6" autocomplete="off" required />
+              <button class="button button-secondary" type="submit">Join room</button>
+            </form>
+          </div>
+          <p id="multiplayer-status" class="multiplayer-status" role="status" aria-live="polite"></p>
+          <section id="multiplayer-room" class="multiplayer-room" hidden>
+            <div class="multiplayer-room-heading">
+              <div><span>Room code</span><strong id="multiplayer-room-code-display"></strong></div>
+              <button id="multiplayer-leave" class="button button-quiet" type="button">Leave room</button>
+            </div>
+            <p id="multiplayer-progress" class="multiplayer-progress"></p>
+            <section class="table multiplayer-table" aria-label="Blackjack table with one shared dealer hand and four player seats">
+              <div id="multiplayer-table-game"></div>
+            </section>
+            <section class="multiplayer-boss" aria-label="Shared monster">
+              <div><strong id="multiplayer-monster-name">Monster</strong><span id="multiplayer-monster-hp"></span></div>
+              <div class="multiplayer-health-track"><span id="multiplayer-monster-health"></span></div>
+            </section>
+            <div id="multiplayer-bet-actions" class="multiplayer-turn-actions multiplayer-bet-actions" hidden>
+              <p id="multiplayer-bet-timer"></p>
+              <button class="button button-secondary" type="button" data-multiplayer-bet="0.1">Bet 10% HP</button>
+              <button class="button button-secondary" type="button" data-multiplayer-bet="0.25">Bet 25% HP</button>
+              <button class="button button-secondary" type="button" data-multiplayer-bet="0.5">Bet 50% HP</button>
+              <button class="button button-quiet" type="button" data-multiplayer-bet="0">Skip bet</button>
+            </div>
+            <h3>Party</h3>
+            <ul id="multiplayer-players" class="multiplayer-players"></ul>
+            <div id="multiplayer-turn-actions" class="multiplayer-turn-actions" hidden>
+              <p id="multiplayer-turn-timer"></p>
+              <button class="button button-primary" type="button" data-multiplayer-action="hit">Hit</button>
+              <button class="button button-secondary" type="button" data-multiplayer-action="stand">Stand</button>
+              <button class="button button-secondary" type="button" data-multiplayer-action="double_down">Double down</button>
+            </div>
+            <div id="multiplayer-loot" class="multiplayer-loot" hidden>
+              <h3>Choose your item</h3>
+              <p id="multiplayer-loot-timer"></p>
+              <div id="multiplayer-loot-choices" class="multiplayer-loot-choices"></div>
+            </div>
+            <button id="multiplayer-start" class="button button-primary" type="button" hidden>Start dungeon</button>
+          </section>
         </section>
 
         <section id="lab-screen" class="screen-panel" aria-labelledby="lab-title" hidden>

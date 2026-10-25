@@ -2,6 +2,7 @@ export function createScreenController({
   onQuitDungeon,
   onOpenLab,
   onOpenLeaderboard,
+  onOpenMultiplayer,
   onOpenDungeons,
   onOpenSettings,
 }) {
@@ -9,14 +10,13 @@ export function createScreenController({
     lobby: document.querySelector('#lobby-screen'),
     dungeonCatalog: document.querySelector('#dungeon-catalog-screen'),
     dungeon: document.querySelector('#dungeon-screen'),
+    multiplayer: document.querySelector('#multiplayer-screen'),
     lab: document.querySelector('#lab-screen'),
     leaderboard: document.querySelector('#leaderboard-screen'),
     settings: document.querySelector('#settings-screen'),
     placeholder: document.querySelector('#placeholder-screen'),
   };
   const gameActions = document.querySelector('#game-actions');
-  const placeholderTitle = document.querySelector('#placeholder-title');
-  const placeholderDescription = document.querySelector('#placeholder-description');
 
   function show(name) {
     for (const [screenName, panel] of Object.entries(screens)) {
@@ -38,9 +38,8 @@ export function createScreenController({
     onOpenLeaderboard();
   });
   document.querySelector('#multiplayer-button').addEventListener('click', () => {
-    placeholderTitle.textContent = 'Multiplayer';
-    placeholderDescription.textContent = 'Multiplayer features are coming soon.';
-    show('placeholder');
+    show('multiplayer');
+    onOpenMultiplayer();
   });
   document.querySelector('#settings-button').addEventListener('click', () => {
     show('settings');

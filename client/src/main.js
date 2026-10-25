@@ -8,6 +8,7 @@ import { createCharacterLab } from './ui/character-lab.js';
 import { createDungeonCatalog } from './ui/dungeon-catalog.js';
 import { createLeaderboardController } from './ui/leaderboard.js';
 import { createLootRenderer } from './ui/loot.js';
+import { createMultiplayerController } from './ui/multiplayer.js';
 import { createScreenController } from './ui/screens.js';
 import { chooseItemOptions, getItem, getItemEffects } from './items.js';
 import {
@@ -528,10 +529,19 @@ const characterLab = createCharacterLab({
   },
 });
 renderProgression = characterLab.renderProgression;
+const multiplayer = createMultiplayerController({
+  onStatsUpdated: (account) => {
+    currentStats = account.stats;
+    applyTotalExp(account.stats.totalExp);
+    renderCurrency();
+    renderProgression();
+  },
+});
 const screens = createScreenController({
   onQuitDungeon: quitDungeon,
   onOpenLab: renderProgression,
   onOpenLeaderboard: leaderboard.open,
+  onOpenMultiplayer: multiplayer.open,
   onOpenDungeons: () => createDungeonCatalog(
     document.querySelector('#dungeon-catalog'),
     dungeons,
@@ -546,6 +556,7 @@ const screens = createScreenController({
 const auth = createAuthController({
   onAuthenticated: enterGame,
   onBeforeSignOut: async () => {
+    multiplayer.close();
     if (runState?.dungeonId) {
       await removeDungeonSession(runState.dungeonId, currentGame?.id);
     }

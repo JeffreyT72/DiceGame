@@ -418,11 +418,182 @@ class CardScene extends BlackjackScene {
   }
 }
 
-function createGame(parent, scene, selectedCharacter) {
+class MultiplayerTableScene extends Phaser.Scene {
+  constructor() {
+    super('blackjack-multiplayer');
+    this.pendingRoom = null;
+  }
+
+  create() {
+    const table = this.add.graphics();
+    const outerPoints = this.semicirclePoints(48, 128, 452, 414);
+    table.fillStyle(0x493020, 1);
+    table.lineStyle(4, 0x9a7045, 1);
+    table.fillPoints(outerPoints, true);
+    table.strokePoints(outerPoints, true);
+
+    const feltPoints = this.semicirclePoints(68, 134, 432, 390);
+    table.fillStyle(0x0a6044, 1);
+    table.lineStyle(2, 0x7ca26a, 1);
+    table.fillPoints(feltPoints, true);
+    table.strokePoints(feltPoints, true);
+
+    table.lineStyle(2, 0xb4d282, 0.7);
+    table.strokePoints(this.semicirclePoints(105, 142, 395, 346), false);
+    this.add.text(500, 105, 'DEALER', {
+      color: '#f1f4ef',
+      fontFamily: 'Arial, sans-serif',
+      fontSize: '16px',
+      fontStyle: 'bold',
+    }).setOrigin(0.5);
+    this.tableLayer = this.add.container(0, 0);
+    if (this.pendingRoom) {
+      this.renderRoom(this.pendingRoom);
+      this.pendingRoom = null;
+    }
+  }
+
+  semicirclePoints(left, top, radiusX, radiusY) {
+    const points = [{ x: left, y: top }, { x: left + radiusX * 2, y: top }];
+    for (let index = 0; index <= 48; index += 1) {
+      const angle = Math.PI * index / 48;
+      points.push({
+        x: left + radiusX + radiusX * Math.cos(angle),
+        y: top + radiusY * Math.sin(angle),
+      });
+    }
+    return points;
+  }
+
+  renderRoom(room) {
+    if (!this.tableLayer) {
+      this.pendingRoom = room;
+      return;
+    }
+    this.tableLayer.removeAll(true);
+    const dealerHand = room.dealerHand
+      ?? room.players.find(({ hand }) => hand)?.hand?.dealerHand
+      ?? [];
+    this.tableLayer.add(this.add.text(500, 126, 'SHARED DEALER HAND', {
+      color: '#d8e8cf',
+      fontFamily: 'Arial, sans-serif',
+      fontSize: '12px',
+      fontStyle: 'bold',
+    }).setOrigin(0.5));
+    this.tableLayer.add(this.add.text(500, 147, room.dealerScore === null || room.dealerScore === undefined
+      ? ''
+      : `${room.dealerScore}`, {
+      color: '#f1f4ef',
+      fontFamily: 'Arial, sans-serif',
+      fontSize: '13px',
+      fontStyle: 'bold',
+    }).setOrigin(0.5));
+    this.drawCards(dealerHand, 500, 205, 54, 77);
+
+    const seats = [
+      { x: 150, y: 383 },
+      { x: 383, y: 421 },
+      { x: 617, y: 421 },
+      { x: 850, y: 383 },
+    ];
+    seats.forEach(({ x, y }, index) => {
+      const player = room.players[index];
+      const active = player?.id === room.currentPlayerId;
+      this.tableLayer.add(this.add.ellipse(x, y - 19, 192, 76, 0x063e30, 0.42)
+        .setStrokeStyle(active ? 3 : 1, active ? 0xb4d282 : 0x3b8064));
+      const name = player
+        ? `${player.username}${active ? ' · TURN' : ''}`
+        : 'OPEN SEAT';
+      this.tableLayer.add(this.add.text(x, y - 44, name, {
+        color: player ? (active ? '#e5f2ba' : '#f1f4ef') : '#9ab7a6',
+        fontFamily: 'Arial, sans-serif',
+        fontSize: '13px',
+        fontStyle: 'bold',
+      }).setOrigin(0.5));
+      if (!player) return;
+
+      const playerHand = player.hand?.playerHand ?? [];
+      const score = player.hand?.playerScore;
+      const details = `${player.alive ? player.playerHp : 0}/${player.maxHp} HP${score === null || score === undefined ? '' : ` · ${score}`}`;
+      this.tableLayer.add(this.add.text(x, y - 25, details, {
+        color: player.alive ? '#d4e1d8' : '#ef9586',
+        fontFamily: 'Arial, sans-serif',
+        fontSize: '11px',
+      }).setOrigin(0.5));
+      if (room.phase === 'betting' && player.betPlaced) {
+        this.tableLayer.add(this.add.text(x, y - 8, `BET ${player.betHp} HP`, {
+          color: '#e5f2ba',
+          fontFamily: 'Arial, sans-serif',
+          fontSize: '10px',
+          fontStyle: 'bold',
+        }).setOrigin(0.5));
+      } else if (player.hand?.status === 'complete' && !room.dealerRevealed) {
+        this.tableLayer.add(this.add.text(x, y - 8, 'DECISION LOCKED', {
+          color: '#e5f2ba',
+          fontFamily: 'Arial, sans-serif',
+          fontSize: '9px',
+          fontStyle: 'bold',
+        }).setOrigin(0.5));
+      }
+      if (player.hand?.status === 'complete') {
+        const resultLabel = room.dealerRevealed
+          ? player.hand.outcome?.replaceAll('_', ' ') ?? ''
+          : '';
+        this.tableLayer.add(this.add.text(x, y + 47, resultLabel, {
+          color: '#d8e8cf',
+          fontFamily: 'Arial, sans-serif',
+          fontSize: '10px',
+          fontStyle: 'bold',
+        }).setOrigin(0.5));
+      }
+      this.drawCards(playerHand, x, y + (room.phase === 'betting' ? 22 : 12), 43, 61);
+    });
+  }
+
+  drawCards(cards, centerX, centerY, cardWidth, cardHeight) {
+    const gap = 4;
+    const width = Math.min(cardWidth, 176 / Math.max(1, cards.length) - gap);
+    const height = width * cardHeight / cardWidth;
+    const cardGap = Math.min(gap, width * 0.1);
+    const startX = centerX - ((cards.length - 1) * (width + cardGap)) / 2;
+    cards.forEach((card, index) => {
+      const x = startX + index * (width + cardGap);
+      const container = this.add.container(x, centerY);
+      const hidden = card.hidden;
+      container.add(this.add.rectangle(0, 0, width, height, hidden ? 0x245780 : 0xfffcf4)
+        .setStrokeStyle(1, hidden ? 0x87b6d5 : 0xd9d4c9));
+      if (hidden) {
+        container.add(this.add.text(0, 0, '★', {
+          color: '#e4f1fa',
+          fontFamily: 'Arial, sans-serif',
+          fontSize: `${Math.max(15, width * 0.45)}px`,
+        }).setOrigin(0.5));
+      } else {
+        const redSuit = card.suit === 'hearts' || card.suit === 'diamonds';
+        const color = redSuit ? '#c44444' : '#263443';
+        const symbol = suitSymbols[card.suit] ?? '';
+        container.add(this.add.text(-width / 2 + 4, -height / 2 + 3, card.rank ?? '', {
+          color,
+          fontFamily: 'Arial, sans-serif',
+          fontSize: `${Math.max(10, width * 0.24)}px`,
+          fontStyle: 'bold',
+        }));
+        container.add(this.add.text(0, 2, symbol, {
+          color,
+          fontFamily: 'Arial, sans-serif',
+          fontSize: `${Math.max(18, width * 0.5)}px`,
+        }).setOrigin(0.5));
+      }
+      this.tableLayer.add(container);
+    });
+  }
+}
+
+function createGame(parent, scene, selectedCharacter, dimensions = { width: 860, height: 490 }) {
   const game = new Phaser.Game({
     type: Phaser.AUTO,
-    width: 860,
-    height: 490,
+    width: dimensions.width,
+    height: dimensions.height,
     parent,
     backgroundColor: '#0b5b43',
     scene,
@@ -446,4 +617,8 @@ export function createBlackjackGame(cardParent, battlefieldParent, selectedChara
     cards: createGame(cardParent, CardScene, selectedCharacter),
     battlefield: createGame(battlefieldParent, BlackjackScene, selectedCharacter),
   };
+}
+
+export function createBlackjackMultiplayerGame(parent) {
+  return createGame(parent, MultiplayerTableScene, 'adventurer', { width: 1000, height: 600 });
 }

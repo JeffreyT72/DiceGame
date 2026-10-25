@@ -9,8 +9,10 @@ import { promisify } from 'node:util';
 import { mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createServer } from 'node:http';
 import Database from 'better-sqlite3';
 import express from 'express';
+import { WebSocketServer } from 'ws';
 import {
   applyAction,
   createGameState,
@@ -23,6 +25,7 @@ import {
   getDungeonStageCount,
   meetsDungeonLevelRequirement,
 } from '../shared/dungeon-config.js';
+import { MultiplayerRooms } from './multiplayer.js';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const databasePath = resolve(projectRoot, process.env.DATABASE_PATH ?? 'data/blackjack.sqlite');
@@ -964,6 +967,79 @@ app.use((error, _request, response, _next) => {
   response.status(500).json({ error: 'Internal server error' });
 });
 
-app.listen(port, () => {
+const httpServer = createServer(app);
+const webSocketServer = new WebSocketServer({ noServer: true, maxPayload: 8 * 1024 });
+const multiplayerRooms = new MultiplayerRooms({
+  awardMonster(userId, completionBonus) {
+    const stats = playerDatabase.prepare(`
+      SELECT total_exp AS totalExp FROM player_stats WHERE user_id = ?
+    `).get(userId);
+    if (!stats) {
+      throw new Error(`Could not find player stats for multiplayer reward: ${userId}`);
+    }
+    const expAwarded = getLevel(stats.totalExp) * 3 + completionBonus;
+    playerDatabase.prepare(`
+      UPDATE player_stats
+      SET total_exp = total_exp + ?,
+        monsters_defeated = monsters_defeated + 1,
+        updated_at = datetime('now')
+      WHERE user_id = ?
+    `).run(expAwarded, userId);
+    return playerStats(userId);
+  },
+});
+
+httpServer.on('upgrade', (request, socket, head) => {
+  let requestUrl;
+  try {
+    requestUrl = new URL(request.url, `http://${request.headers.host}`);
+  } catch {
+    socket.destroy();
+    return;
+  }
+  if (requestUrl.pathname !== '/ws/multiplayer') {
+    socket.destroy();
+    return;
+  }
+  const origin = request.headers.origin;
+  let originHost = null;
+  try {
+    originHost = origin ? new URL(origin).host : null;
+  } catch {
+    originHost = null;
+  }
+  if (!originHost || originHost.toLowerCase() !== request.headers.host?.toLowerCase()) {
+    socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
+    socket.destroy();
+    return;
+  }
+  const token = getSessionToken(request);
+  const session = token && playerDatabase.prepare(`
+    SELECT player_sessions.user_id AS userId, users.active
+    FROM player_sessions
+    JOIN users ON users.id = player_sessions.user_id
+    WHERE player_sessions.token_hash = ? AND player_sessions.expires_at > ?
+  `).get(hashToken(token), new Date().toISOString());
+  if (!session || session.active !== 1) {
+    socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+    socket.destroy();
+    return;
+  }
+  const account = publicAccount(session.userId);
+  if (!account) {
+    socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+    socket.destroy();
+    return;
+  }
+  webSocketServer.handleUpgrade(request, socket, head, (webSocket) => {
+    multiplayerRooms.connect({
+      id: account.user.id,
+      username: account.user.username,
+      stats: account.stats,
+    }, webSocket);
+  });
+});
+
+httpServer.listen(port, () => {
   console.log(`Blackjack server listening on http://localhost:${port}`);
 });

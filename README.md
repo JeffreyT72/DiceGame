@@ -14,7 +14,7 @@ npm install
 npm run dev
 ```
 
-Open the Vite URL shown in the terminal (usually <http://localhost:5173>). The frontend proxies `/api` requests to the backend at <http://localhost:3000>.
+Open the Vite URL shown in the terminal (usually <http://localhost:5173>). The frontend proxies `/api` requests and `/ws` WebSocket connections to the backend at <http://localhost:3000>.
 
 ## Production build
 
@@ -38,6 +38,14 @@ The server serves the built frontend and API from <http://localhost:3000> in loc
 
 Dungeon progress is temporary and is not saved for recovery. Entering a dungeon always starts at stage 1; leaving the dungeon or completing the final stage removes the run and its battle records. Dungeon stage clears are recorded on the server while the run is active and must be completed in order. The server awards the configured clear reward once, when the final boss is defeated.
 
+## Multiplayer
+
+Open Multiplayer from the game menu to create a room or join one with its six-character room code. Rooms support up to four signed-in players. The host starts the dungeon once at least two players have joined. Room membership and dungeon progress live in server memory and are lost if the server restarts.
+
+Multiplayer runs the full dungeon in `shared/dungeon-multiplayer-config.js`. The party shares each monster's HP, and up to four players sit at one blackjack table facing a shared dealer hand and shoe for each round. Each round starts with a shared 30-second betting window; players can wager 10%, 25%, or 50% of their HP, or skip. Bets are spent immediately, and a win earns the corresponding damage bonus. After the opening deal, players take turns in room order with 30 seconds each; the dealer stays hidden until every living player has finished deciding. The dealer then reveals, and the party resolves the round against the monster. A player at zero HP is defeated and no longer takes turns. After each cleared stage, every surviving player has 30 seconds to make an individual item choice; missed bets default to no wager and missed item choices take the first offered item. Each surviving player receives the per-monster EXP and, for clearing the final boss, the dungeon's configured EXP reward.
+
+WebSocket connections use the same signed-in session cookie as the HTTP API and require a same-host browser origin. Production reverse proxies must forward WebSocket upgrade requests to the app.
+
 ## Accounts and storage
 
 Create an account or sign in before playing. Player accounts, password hashes, login sessions, and progression are stored in `data/player-accounts.sqlite`. Active dungeon stages and blackjack hands are stored temporarily in the respective databases and removed when a run ends. Both databases are created automatically.
@@ -58,6 +66,7 @@ Set `DATABASE_PATH` or `PLAYER_DATABASE_PATH` to use other SQLite files, or `POR
 - `POST /api/dungeons/:id/clear-stage` accepts `{ "stage": 1, "gameId": "..." }`; only a completed winning hand can clear the next stage, and clearing the final configured stage awards the dungeon EXP reward.
 - `POST /api/games` starts a blackjack hand.
 - `POST /api/games/:id/actions` accepts `{ "action": "hit" }`, `{ "action": "stand" }`, or `{ "action": "double_down" }`. Double down is only available on the player's initial two-card turn.
+- `WS /ws/multiplayer` provides authenticated room actions for creating and joining rooms, starting the dungeon, playing a turn, choosing loot, and leaving the room.
 
 ## Project structure
 
@@ -67,16 +76,19 @@ client/
     main.js             App setup and dungeon orchestration
     game/combat.js      Blackjack combat resolution
     services/api.js     Shared API requests
+    services/multiplayer.js WebSocket client connection
     ui/auth.js          Sign-in, sign-up, and session controls
     ui/character-lab.js Character progression and stat allocation
     ui/dungeon-catalog.js Dungeon and monster catalog page
     ui/leaderboard.js   Leaderboard loading and rendering
     ui/loot.js          Run inventory and item-choice rendering
-    ui/screens.js       Lobby, dungeon catalog, Lab, leaderboard, and placeholder navigation
-    blackjack-scene.js  Phaser dungeon battlefield
-server/                 Express API, blackjack rules, accounts, and dungeon progression
+    ui/multiplayer.js   Multiplayer room controls and party display
+    ui/screens.js       Lobby, dungeon catalog, Lab, leaderboard, and screen navigation
+    blackjack-scene.js  Phaser dungeon battlefield and multiplayer table
+server/                 Express API, blackjack rules, accounts, and WebSocket rooms
+shared/dungeon-multiplayer-config.js Multiplayer dungeon encounters
 shared/dungeon-config.js Dungeon definitions and mob/boss attributes
 data/                   SQLite databases (created at runtime)
 ```
 
-Add a dungeon by appending a definition to `shared/dungeon-config.js` with its mob list, boss, and reward. The Dungeons page displays its encounters and monster attributes automatically. After signing in, the game menu also links to the character-stat Lab, leaderboards ranked by total EXP and monsters defeated, character selection in Settings, and placeholder Multiplayer features. The selected character is saved in the browser.
+Add a single-player dungeon by appending a definition to `shared/dungeon-config.js`; multiplayer encounters are configured separately in `shared/dungeon-multiplayer-config.js`. After signing in, the game menu links to the character-stat Lab, leaderboards ranked by total EXP and monsters defeated, character selection in Settings, and Multiplayer rooms. The selected character is saved in the browser.

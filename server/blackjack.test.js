@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { applyAction, toPublicGame } from './blackjack.js';
+import {
+  applyAction,
+  createGameState,
+  resolveDealerHand,
+  resolveHandOutcome,
+  toPublicGame,
+} from './blackjack.js';
 
 function createTestState() {
   return {
@@ -17,6 +23,46 @@ function createTestState() {
     status: 'playing',
   };
 }
+
+test('multiplayer hands draw from one shared dealer hand and shoe', () => {
+  const dealerHand = [
+    { rank: '6', suit: 'clubs' },
+    { rank: '5', suit: 'hearts' },
+  ];
+  const dealerDeck = [
+    { rank: '2', suit: 'spades' },
+    { rank: '3', suit: 'diamonds' },
+    { rank: '4', suit: 'clubs' },
+    { rank: '5', suit: 'spades' },
+    { rank: '6', suit: 'hearts' },
+    { rank: '7', suit: 'clubs' },
+  ];
+  const state = createGameState({ dealerHand, dealerDeck });
+
+  assert.strictEqual(state.dealerHand, dealerHand);
+  assert.strictEqual(state.deck, dealerDeck);
+  assert.deepEqual(state.playerHand, [
+    { rank: '7', suit: 'clubs' },
+    { rank: '6', suit: 'hearts' },
+  ]);
+  applyAction(state, 'stand');
+  assert.deepEqual(dealerHand.slice(2), [
+    { rank: '5', suit: 'spades' },
+    { rank: '4', suit: 'clubs' },
+  ]);
+});
+
+test('deferred decisions do not reveal or resolve the dealer hand early', () => {
+  const state = createTestState();
+  const result = applyAction(state, 'stand', { deferDealerResolution: true });
+
+  assert.equal(result.state.status, 'complete');
+  assert.equal(result.state.outcome, null);
+  assert.equal(state.dealerHand.length, 2);
+
+  resolveDealerHand(state);
+  assert.equal(resolveHandOutcome(state), 'dealer_win');
+});
 
 test('double down draws one card, doubles down, and ends the turn', () => {
   const state = createTestState();

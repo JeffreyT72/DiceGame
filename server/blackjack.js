@@ -40,8 +40,9 @@ function isBlackjack(hand) {
 }
 
 function dealerTurn(state) {
+  const deck = state.dealerDeck ?? state.deck;
   while (handValue(state.dealerHand) < 17) {
-    state.dealerHand.push(state.deck.pop());
+    state.dealerHand.push(deck.pop());
   }
 
   const playerScore = handValue(state.playerHand);
@@ -60,11 +61,51 @@ function dealerTurn(state) {
   state.status = 'complete';
 }
 
-export function createGameState() {
-  const deck = createDeck();
+export function resolveDealerHand(state) {
+  const deck = state.dealerDeck ?? state.deck;
+  while (handValue(state.dealerHand) < 17) {
+    const card = deck.pop();
+    if (!card) break;
+    state.dealerHand.push(card);
+  }
+}
+
+export function resolveHandOutcome(state) {
+  const playerScore = handValue(state.playerHand);
+  const dealerScore = handValue(state.dealerHand);
+
+  if (playerScore > 21) {
+    state.outcome = 'player_bust';
+  } else if (isBlackjack(state.playerHand) && isBlackjack(state.dealerHand)) {
+    state.outcome = 'push';
+  } else if (isBlackjack(state.playerHand)) {
+    state.outcome = 'player_blackjack';
+  } else if (isBlackjack(state.dealerHand)) {
+    state.outcome = 'dealer_blackjack';
+  } else if (dealerScore > 21) {
+    state.outcome = 'dealer_bust';
+  } else if (playerScore > dealerScore) {
+    state.outcome = 'player_win';
+  } else if (playerScore < dealerScore) {
+    state.outcome = 'dealer_win';
+  } else {
+    state.outcome = 'push';
+  }
+
+  state.status = 'complete';
+  return state.outcome;
+}
+
+export function createGameState({
+  dealerHand,
+  dealerDeck,
+  deferDealerResolution = false,
+} = {}) {
+  const deck = dealerDeck ?? createDeck();
   const state = {
     deck,
-    dealerHand: [deck.pop(), deck.pop()],
+    dealerHand: dealerHand ?? [deck.pop(), deck.pop()],
+    dealerDeck: deck,
     hitCount: 0,
     hitMultiplier: 1.2,
     outcome: null,
@@ -75,18 +116,22 @@ export function createGameState() {
   const playerBlackjack = isBlackjack(state.playerHand);
   const dealerBlackjack = isBlackjack(state.dealerHand);
   if (playerBlackjack || dealerBlackjack) {
-    state.status = 'complete';
-    state.outcome = playerBlackjack && dealerBlackjack
-      ? 'push'
-      : playerBlackjack
-        ? 'player_blackjack'
-        : 'dealer_blackjack';
+    if (deferDealerResolution) {
+      state.status = playerBlackjack ? 'complete' : 'playing';
+    } else {
+      state.status = 'complete';
+      state.outcome = playerBlackjack && dealerBlackjack
+        ? 'push'
+        : playerBlackjack
+          ? 'player_blackjack'
+          : 'dealer_blackjack';
+    }
   }
 
   return state;
 }
 
-export function applyAction(state, action) {
+export function applyAction(state, action, { deferDealerResolution = false } = {}) {
   if (state.status !== 'playing') {
     return { error: 'This hand is already complete.', status: 409 };
   }
@@ -108,7 +153,11 @@ export function applyAction(state, action) {
       state.status = 'complete';
       state.outcome = 'player_bust';
     } else if (score === 21) {
-      dealerTurn(state);
+      if (deferDealerResolution) {
+        state.status = 'complete';
+      } else {
+        dealerTurn(state);
+      }
     }
   } else if (action === 'double_down') {
     if (state.playerHand.length !== 2) {
@@ -119,11 +168,17 @@ export function applyAction(state, action) {
     if (handValue(state.playerHand) > 21) {
       state.status = 'complete';
       state.outcome = 'player_bust';
+    } else if (deferDealerResolution) {
+      state.status = 'complete';
     } else {
       dealerTurn(state);
     }
   } else if (action === 'stand') {
-    dealerTurn(state);
+    if (deferDealerResolution) {
+      state.status = 'complete';
+    } else {
+      dealerTurn(state);
+    }
   } else {
     return { error: 'Action must be "hit", "stand", or "double_down".', status: 400 };
   }

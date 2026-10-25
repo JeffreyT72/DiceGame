@@ -76,7 +76,9 @@ h1 {
 #game,
 #game canvas,
 #battlefield-game,
-#battlefield-game canvas {
+#battlefield-game canvas,
+#multiplayer-table-game,
+#multiplayer-table-game canvas {
   display: block;
   width: 100%;
   height: auto;
@@ -383,10 +385,17 @@ h1 {
 #lobby-screen[hidden],
 #dungeon-catalog-screen[hidden],
 #dungeon-screen[hidden],
+#multiplayer-screen[hidden],
 #lab-screen[hidden],
 #leaderboard-screen[hidden],
 #settings-screen[hidden],
-#placeholder-screen[hidden] {
+#placeholder-screen[hidden],
+#multiplayer-entry[hidden],
+#multiplayer-room[hidden],
+#multiplayer-turn-actions[hidden],
+#multiplayer-bet-actions[hidden],
+#multiplayer-loot[hidden],
+#multiplayer-start[hidden] {
   display: none;
 }
 
@@ -597,6 +606,207 @@ h1 {
 
 .screen-back {
   margin-bottom: 18px;
+}
+
+.multiplayer-entry {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid #35473e;
+  border-radius: 12px;
+  background: #131e1a;
+}
+
+.multiplayer-join-form {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.multiplayer-join-form label {
+  color: #d1d9d2;
+  font-weight: 650;
+}
+
+.multiplayer-join-form input {
+  width: 140px;
+  min-height: 46px;
+  padding: 10px 12px;
+  border: 1px solid #536459;
+  border-radius: 9px;
+  background: #101a19;
+  color: #f1f4ef;
+  font: inherit;
+  text-transform: uppercase;
+}
+
+.multiplayer-status {
+  min-height: 1.5em;
+  color: #b4d282;
+}
+
+.multiplayer-room {
+  display: grid;
+  gap: 14px;
+}
+
+.multiplayer-room-heading,
+.multiplayer-player-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.multiplayer-room-heading > div {
+  display: grid;
+  gap: 4px;
+  color: #aebbb3;
+}
+
+.multiplayer-room-heading strong {
+  color: #b4d282;
+  font-size: 1.5rem;
+  letter-spacing: 0.14em;
+}
+
+.multiplayer-progress {
+  margin: 0;
+  color: #b4d282;
+  font-weight: 700;
+  text-align: center;
+}
+
+.multiplayer-table {
+  width: 100%;
+  aspect-ratio: 5 / 3;
+  background: #0b392d;
+}
+
+.multiplayer-table canvas {
+  max-width: 100%;
+}
+
+.multiplayer-boss {
+  padding: 16px;
+  border: 1px solid #6e4439;
+  border-radius: 12px;
+  background: #241c1a;
+}
+
+.multiplayer-boss > div:first-child {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.multiplayer-boss strong {
+  color: #ffd8c9;
+}
+
+.multiplayer-boss span {
+  color: #f1f4ef;
+}
+
+.multiplayer-health-track {
+  height: 12px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #101a19;
+}
+
+.multiplayer-health-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #d46d5e;
+  transition: width 180ms ease;
+}
+
+.multiplayer-room h3 {
+  margin: 4px 0 0;
+  color: #b4d282;
+  font-size: 1rem;
+}
+
+.multiplayer-players {
+  display: grid;
+  gap: 9px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.multiplayer-player {
+  padding: 14px;
+  border: 1px solid #35473e;
+  border-radius: 10px;
+  background: #131e1a;
+}
+
+.multiplayer-player-heading strong {
+  color: #f1f4ef;
+}
+
+.multiplayer-player-heading span,
+.multiplayer-hand,
+.multiplayer-items {
+  color: #aebbb3;
+  font-size: 0.88rem;
+}
+
+.multiplayer-hand,
+.multiplayer-items {
+  margin: 8px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.multiplayer-turn-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #718447;
+  border-radius: 12px;
+  background: #202a20;
+}
+
+.multiplayer-turn-actions p {
+  flex-basis: 100%;
+  margin: 0;
+  color: #b4d282;
+  font-weight: 700;
+}
+
+.multiplayer-loot {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #718447;
+  border-radius: 12px;
+  background: #202a20;
+}
+
+.multiplayer-loot-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.multiplayer-loot-choice {
+  padding: 10px 14px;
+  border: 1px solid #536459;
+  border-radius: 9px;
+  background: #131e1a;
+  color: #b4d282;
+  cursor: pointer;
+  font: inherit;
+  text-transform: capitalize;
 }
 
 .dungeon-catalog {
