@@ -73,6 +73,9 @@ playerDatabase.exec(`
     losses INTEGER NOT NULL DEFAULT 0 CHECK (losses >= 0),
     pushes INTEGER NOT NULL DEFAULT 0 CHECK (pushes >= 0),
     monsters_defeated INTEGER NOT NULL DEFAULT 0 CHECK (monsters_defeated >= 0),
+    character TEXT NOT NULL DEFAULT 'adventurer',
+    title TEXT NOT NULL DEFAULT '',
+    frame TEXT NOT NULL DEFAULT '',
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
@@ -178,6 +181,15 @@ const existingPlayerStatColumns = new Set(
 for (const column of ['strength', 'agility', 'constitution', 'luck', 'currency']) {
   if (!existingPlayerStatColumns.has(column)) {
     playerDatabase.exec(`ALTER TABLE player_stats ADD COLUMN ${column} INTEGER NOT NULL DEFAULT 0 CHECK (${column} >= 0)`);
+  }
+}
+for (const [column, defaultValue] of Object.entries({
+  character: "'adventurer'",
+  title: "''",
+  frame: "''",
+})) {
+  if (!existingPlayerStatColumns.has(column)) {
+    playerDatabase.exec(`ALTER TABLE player_stats ADD COLUMN ${column} TEXT NOT NULL DEFAULT ${defaultValue}`);
   }
 }
 playerDatabase.pragma('foreign_keys = ON');
@@ -514,7 +526,8 @@ function publicAccount(userId) {
       player_stats.currency,
       player_stats.games_played AS gamesPlayed, player_stats.wins,
       player_stats.losses, player_stats.pushes,
-      player_stats.monsters_defeated AS monstersDefeated
+      player_stats.monsters_defeated AS monstersDefeated,
+      player_stats.character, player_stats.title, player_stats.frame
     FROM users
     JOIN player_stats ON player_stats.user_id = users.id
     WHERE users.id = ?
@@ -663,6 +676,55 @@ app.post('/api/auth/logout', (request, response) => {
 });
 
 app.get('/api/player/stats', requirePlayer, (request, response) => {
+  response.json({ stats: playerStats(request.playerId) });
+});
+
+const costumeCharacters = new Set(['adventurer', 'adventurer-male', 'mel']);
+
+app.patch('/api/player/costume', requirePlayer, (request, response) => {
+  const costume = request.body;
+  const costumeFields = ['character', 'title', 'frame'];
+  if (
+    !costume
+    || typeof costume !== 'object'
+    || Array.isArray(costume)
+    || !costumeFields.some((field) => Object.hasOwn(costume, field))
+    || Object.keys(costume).some((field) => !costumeFields.includes(field))
+  ) {
+    return response.status(400).json({ error: 'Provide one or more valid costume fields.' });
+  }
+
+  if (
+    Object.hasOwn(costume, 'character')
+    && (typeof costume.character !== 'string' || !costumeCharacters.has(costume.character))
+  ) {
+    return response.status(400).json({ error: 'Choose a valid character.' });
+  }
+  for (const field of ['title', 'frame']) {
+    if (
+      Object.hasOwn(costume, field)
+      && (typeof costume[field] !== 'string' || costume[field].length > 64)
+    ) {
+      return response.status(400).json({ error: `${field} must be a string of at most 64 characters.` });
+    }
+  }
+
+  const existingCostume = playerDatabase.prepare(`
+    SELECT character, title, frame FROM player_stats WHERE user_id = ?
+  `).get(request.playerId);
+  if (!existingCostume) {
+    return response.status(404).json({ error: 'Player stats could not be found.' });
+  }
+  playerDatabase.prepare(`
+    UPDATE player_stats
+    SET character = ?, title = ?, frame = ?, updated_at = datetime('now')
+    WHERE user_id = ?
+  `).run(
+    costume.character ?? existingCostume.character,
+    costume.title ?? existingCostume.title,
+    costume.frame ?? existingCostume.frame,
+    request.playerId,
+  );
   response.json({ stats: playerStats(request.playerId) });
 });
 
@@ -859,7 +921,8 @@ app.post('/api/dungeons/:id/clear-stage', requirePlayer, (request, response) => 
 function playerStats(userId) {
   const stats = playerDatabase.prepare(`
     SELECT total_exp AS totalExp, games_played AS gamesPlayed, wins, losses, pushes,
-      monsters_defeated AS monstersDefeated, strength, agility, constitution, luck, currency
+      monsters_defeated AS monstersDefeated, strength, agility, constitution, luck, currency,
+      character, title, frame
     FROM player_stats WHERE user_id = ?
   `).get(userId);
   if (!stats) {

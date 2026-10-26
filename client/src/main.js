@@ -31,6 +31,9 @@ let currentStats = {
   luck: 0,
   currency: 0,
   availableStatPoints: 0,
+  character: characters[0].id,
+  title: '',
+  frame: '',
 };
 let runState = null;
 let resolvingStage = false;
@@ -52,31 +55,33 @@ const accountName = document.querySelector('#account-name');
 const lobbyCurrency = document.querySelector('#lobby-currency');
 const characterSelect = document.querySelector('#character-select');
 const settingsStatus = document.querySelector('#settings-status');
-const characterPreferenceKey = 'dungeon-run-character';
 
 let selectedCharacter = characters[0].id;
 let characterSettingsMessage = '';
-try {
-  const savedCharacter = window.localStorage.getItem(characterPreferenceKey);
-  if (characters.some(({ id }) => id === savedCharacter)) {
-    selectedCharacter = savedCharacter;
+
+characterSelect.addEventListener('change', async () => {
+  const character = characters.find(({ id }) => id === characterSelect.value);
+  if (!character) {
+    characterSelect.value = selectedCharacter;
+    return;
   }
-} catch (error) {
-  console.error(error);
-  characterSettingsMessage = 'Could not load your saved character. The Adventurer is selected for this visit.';
-}
-
-characterSelect.addEventListener('change', () => {
-  selectedCharacter = characterSelect.value;
-  const character = characters.find(({ id }) => id === selectedCharacter);
-  game?.battlefield.scene.getScene('blackjack')?.setCharacter(selectedCharacter);
-
+  characterSelect.disabled = true;
   try {
-    window.localStorage.setItem(characterPreferenceKey, selectedCharacter);
-    characterSettingsMessage = `${character.name} selected.`;
+    const { stats } = await request('/api/player/costume', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ character: character.id }),
+    });
+    currentStats = stats;
+    selectedCharacter = stats.character;
+    game?.battlefield.scene.getScene('blackjack')?.setCharacter(selectedCharacter);
+    characterSettingsMessage = `${character.name} saved to your account.`;
   } catch (error) {
     console.error(error);
-    characterSettingsMessage = `${character.name} selected for this visit, but the preference could not be saved.`;
+    characterSelect.value = selectedCharacter;
+    characterSettingsMessage = `Could not save ${character.name}: ${error.message}`;
+  } finally {
+    characterSelect.disabled = false;
   }
   settingsStatus.textContent = characterSettingsMessage;
 });
@@ -398,6 +403,11 @@ async function chooseItem(itemId) {
 async function enterGame(account) {
   currentPlayer = account.user;
   currentStats = account.stats;
+  selectedCharacter = characters.some(({ id }) => id === currentStats.character)
+    ? currentStats.character
+    : characters[0].id;
+  characterSelect.value = selectedCharacter;
+  game?.battlefield.scene.getScene('blackjack')?.setCharacter(selectedCharacter);
   applyTotalExp(account.stats.totalExp);
   renderCurrency();
   accountName.textContent = currentPlayer.username;

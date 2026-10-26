@@ -58,7 +58,8 @@ Set `DATABASE_PATH` or `PLAYER_DATABASE_PATH` to use other SQLite files, or `POR
 - `POST /api/auth/login` signs in with a username or email and password.
 - `GET /api/auth/me` returns the signed-in account and player stats.
 - `POST /api/auth/logout` ends the current session.
-- `GET /api/player/stats` returns the signed-in player's stats.
+- `GET /api/player/stats` returns the signed-in player's stats and costume (`character`, `title`, and `frame`).
+- `PATCH /api/player/costume` saves one or more costume fields for the signed-in player.
 - `GET /api/player/leaderboard` returns separate username rankings by total EXP and monsters defeated.
 - `POST /api/player/stats/allocate` accepts `{ "stat": "strength" }`, `"agility"`, `"constitution"`, or `"luck"` and spends one available stat point.
 - `POST /api/dungeons` starts a run with `{ "dungeonKey": "verdant-hollow", "suggestedLevel": 1 }` (suggested level valid values: 1–10; dungeon key defaults to `verdant-hollow`).
