@@ -175,8 +175,13 @@
               <button class="button button-secondary" type="button" data-multiplayer-bet="0.5">Bet 50% HP</button>
               <button class="button button-quiet" type="button" data-multiplayer-bet="0">Skip bet</button>
             </div>
-            <h3>Party</h3>
-            <ul id="multiplayer-players" class="multiplayer-players"></ul>
+            <section class="multiplayer-party" aria-label="Party members">
+              <div class="multiplayer-party-heading">
+                <h3>Party</h3>
+                <span id="multiplayer-party-count"></span>
+              </div>
+              <ul id="multiplayer-players" class="multiplayer-players"></ul>
+            </section>
             <div id="multiplayer-turn-actions" class="multiplayer-turn-actions" hidden>
               <p id="multiplayer-turn-timer"></p>
               <button class="button button-primary" type="button" data-multiplayer-action="hit">Hit</button>

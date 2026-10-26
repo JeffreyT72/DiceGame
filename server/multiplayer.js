@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import { getCombatHandModifiers } from '../shared/combat-rules.js';
 import {
   applyAction,
   createGameState,
@@ -419,6 +420,7 @@ export class MultiplayerRooms {
     const effects = getItemEffects(player.items);
     player.lastDamage = null;
     if (winningOutcomes.has(state.outcome)) {
+      const handModifiers = getCombatHandModifiers(state.playerHand, state.hitCount);
       const attackDamage = Math.max(
         0,
         handValue(state.playerHand) + player.stats.strength + effects.attack - monster.defense,
@@ -428,10 +430,13 @@ export class MultiplayerRooms {
         attackDamage,
       ) * (state.doubledDown ? 2 : 1);
       const hitMultiplier = state.hitCount > 0 ? state.hitMultiplier + effects.hitMultiplier : 1;
+      const pairMultiplier = handModifiers.matchingPair ? 1.5 : 1;
+      const fiveCardMultiplier = handModifiers.fiveCardHand ? 2 : 1;
       const criticalChance = Math.min(100, player.stats.luck * 3 + effects.criticalChance * 100);
       const critical = Math.random() * 100 < criticalChance;
       const damage = Math.min(room.monsterHp, Math.floor(
-        baseDamage * hitMultiplier * (1 + player.betPercentage * 2) * (critical ? 1.5 : 1),
+        baseDamage * hitMultiplier * pairMultiplier * fiveCardMultiplier
+          * (1 + player.betPercentage * 2) * (critical ? 1.5 : 1),
       ));
       room.monsterHp = Math.max(0, room.monsterHp - damage);
       const healing = Math.min(
@@ -445,10 +450,21 @@ export class MultiplayerRooms {
         healed: healing,
         critical,
         wagerHp: player.betHp,
+        betPercentage: player.betPercentage,
+        hitCount: state.hitCount,
+        hitMultiplier,
+        doubledDown: Boolean(state.doubledDown),
+        itemAttack: effects.attack,
+        matchingPair: handModifiers.matchingPair,
+        fiveCardHand: handModifiers.fiveCardHand,
       };
     } else if (losingOutcomes.has(state.outcome)) {
+      const handModifiers = getCombatHandModifiers(state.playerHand, state.hitCount);
       const dealerScore = handValue(state.dealerHand);
-      let damage = Math.floor((dealerScore + monster.attackPower) * (1 - effects.damageReduction))
+      let damage = Math.floor(
+        (dealerScore + monster.attackPower) * (1 - effects.damageReduction)
+          * (handModifiers.noHit ? 0.5 : 1),
+      )
         * (state.doubledDown ? 2 : 1);
       const dodgeChance = Math.min(100, player.stats.agility * 5 + effects.dodgeChance * 100);
       if (Math.random() * 100 < dodgeChance) {
@@ -458,7 +474,15 @@ export class MultiplayerRooms {
         const reflected = Math.min(room.monsterHp, Math.floor(damage * effects.damageReflection));
         room.monsterHp -= reflected;
       }
-      player.lastDamage = { taken: damage, dodged: damage === 0, wagerHp: player.betHp };
+      player.lastDamage = {
+        taken: damage,
+        dodged: damage === 0,
+        wagerHp: player.betHp,
+        betPercentage: player.betPercentage,
+        noHit: handModifiers.noHit,
+        doubledDown: Boolean(state.doubledDown),
+        itemDamageReduction: effects.damageReduction,
+      };
       if (player.playerHp === 0) {
         player.alive = false;
       }

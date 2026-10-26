@@ -9,6 +9,7 @@ export function createMultiplayerController({ onStatsUpdated }) {
   const createButton = document.querySelector('#multiplayer-create');
   const joinForm = document.querySelector('#multiplayer-join-form');
   const joinCode = document.querySelector('#multiplayer-room-code');
+  const joinButton = joinForm.querySelector('button[type="submit"]');
   const roomPanel = document.querySelector('#multiplayer-room');
   const tableParent = document.querySelector('#multiplayer-table-game');
   const status = document.querySelector('#multiplayer-status');
@@ -18,6 +19,7 @@ export function createMultiplayerController({ onStatsUpdated }) {
   const monsterHp = document.querySelector('#multiplayer-monster-hp');
   const monsterHealth = document.querySelector('#multiplayer-monster-health');
   const playersList = document.querySelector('#multiplayer-players');
+  const partyCount = document.querySelector('#multiplayer-party-count');
   const startButton = document.querySelector('#multiplayer-start');
   const leaveButton = document.querySelector('#multiplayer-leave');
   const turnActions = document.querySelector('#multiplayer-turn-actions');
@@ -42,9 +44,16 @@ export function createMultiplayerController({ onStatsUpdated }) {
     status.textContent = message;
   }
 
+  function updateConnectionControls() {
+    const ready = connected && connection?.isReady();
+    createButton.disabled = !ready;
+    joinCode.disabled = !ready;
+    joinButton.disabled = !ready;
+  }
+
   function send(message) {
-    if (!connection) {
-      setStatus('Multiplayer is disconnected. Reconnecting…');
+    if (!connection || !connected || !connection.isReady()) {
+      setStatus(connection ? 'Connecting to multiplayer…' : 'Multiplayer is disconnected. Reconnecting…');
       return false;
     }
     try {
@@ -65,9 +74,12 @@ export function createMultiplayerController({ onStatsUpdated }) {
   }
 
   function connect() {
+    connected = false;
+    updateConnectionControls();
     connection = connectMultiplayer({
       onOpen: () => {
         connected = true;
+        updateConnectionControls();
         setStatus('Connected. Create a room or join with a code.');
         const code = window.localStorage.getItem(savedRoomKey);
         if (code) send({ type: 'join_room', code });
@@ -75,12 +87,17 @@ export function createMultiplayerController({ onStatsUpdated }) {
       onClose: () => {
         connection = null;
         connected = false;
+        updateConnectionControls();
         actionPending = false;
         if (intentionallyClosed) return;
         setStatus('Connection lost. Reconnecting…');
         reconnectTimer = window.setTimeout(connect, 2000);
       },
-      onError: () => setStatus('Could not connect to multiplayer. Check your connection and try again.'),
+      onError: () => {
+        connected = false;
+        updateConnectionControls();
+        setStatus('Could not connect to multiplayer. Check your connection and try again.');
+      },
       onMessage: receive,
     });
   }
@@ -138,9 +155,12 @@ export function createMultiplayerController({ onStatsUpdated }) {
     if (!roomState) return;
     entry.hidden = true;
     roomPanel.hidden = false;
+    roomPanel.dataset.phase = roomState.phase;
     roomCodeDisplay.textContent = roomState.code;
-    tableGame ??= createBlackjackMultiplayerGame(tableParent);
-    tableGame.scene.getScene('blackjack-multiplayer')?.renderRoom(roomState);
+    if (roomState.phase !== 'lobby') {
+      tableGame ??= createBlackjackMultiplayerGame(tableParent);
+      tableGame.scene.getScene('blackjack-multiplayer')?.renderRoom(roomState);
+    }
     const currentPlayer = roomState.players.find(({ id }) => id === roomState.currentPlayerId);
     const monster = roomState.monster;
     monsterName.textContent = monster?.name ?? roomState.dungeonName;
@@ -163,6 +183,7 @@ export function createMultiplayerController({ onStatsUpdated }) {
                 : `${roomState.dungeonName} · Stage ${roomState.stage} of ${roomState.stageCount} · Round ${roomState.round}${currentPlayer ? ` · ${currentPlayer.username}'s turn` : ''}`;
     if (roomState.lastMessage) setStatus(roomState.lastMessage);
 
+    partyCount.textContent = `${roomState.players.length} / 4 adventurers`;
     playersList.replaceChildren(...roomState.players.map((player) => createPlayerRow(player, roomState)));
     const me = roomState.players.find(({ id }) => id === roomState.viewerId);
     const bettingOpen = roomState.phase === 'betting' && connected;

@@ -220,42 +220,87 @@ class BlackjackScene extends Phaser.Scene {
     }
   }
 
-  showDamageEffect({ damage, hitCount, hitMultiplier }) {
-    const effect = this.add.container(650, 248);
-    effect.add(this.add.text(0, -10, `-${damage} HP`, {
-      color: '#ffe58a',
+  showDamageEffect(event) {
+    const incoming = event.direction === 'taken';
+    const targetX = incoming ? 210 : 650;
+    const targetSprite = incoming ? this.heroSprite : this.monsterSprite;
+    const effect = this.add.container(targetX, 248);
+    const headline = event.dodged ? 'DODGED!' : `-${event.damage} HP`;
+    effect.add(this.add.text(0, -14, headline, {
+      color: event.dodged ? '#b4d282' : incoming ? '#ff9c91' : '#ffe58a',
       fontFamily: 'Arial, sans-serif',
       fontSize: '25px',
       fontStyle: 'bold',
       stroke: '#34261d',
       strokeThickness: 5,
     }).setOrigin(0.5));
-    effect.add(this.add.text(0, 18, `HITS ${hitCount}  ·  DAMAGE x${hitMultiplier.toFixed(1)}`, {
-      color: '#e8f6c7',
-      fontFamily: 'Arial, sans-serif',
-      fontSize: '14px',
-      fontStyle: 'bold',
-      stroke: '#173328',
-      strokeThickness: 4,
-    }).setOrigin(0.5));
+    const bonusLabels = [];
+    if (event.hitCount > 0) bonusLabels.push(`HITS x${event.hitMultiplier.toFixed(1)}`);
+    if (event.matchingPair) bonusLabels.push('PAIR x1.5');
+    if (event.fiveCardHand) bonusLabels.push('5 CARDS x2');
+    if (event.doubledDown) bonusLabels.push('DOUBLE DOWN x2');
+    if (event.criticalHit) bonusLabels.push('CRITICAL x1.5');
+    if (event.wagerPercentage > 0) {
+      bonusLabels.push(`WAGER +${event.wagerPercentage * 200}%`);
+    }
+    if (event.itemAttack > 0) bonusLabels.push(`ITEM ATK +${event.itemAttack}`);
+    if (event.noHit) bonusLabels.push('GUARD x0.5');
+    if (event.itemDamageReduction > 0) {
+      bonusLabels.push(`ITEM GUARD -${event.itemDamageReduction * 100}%`);
+    }
+    if (event.healed > 0) bonusLabels.push(`HEAL +${event.healed} HP`);
+    bonusLabels.forEach((label, index) => {
+      effect.add(this.add.text(0, 15 + index * 18, label, {
+        color: event.noHit && label === 'GUARD x0.5' ? '#b4d282' : '#e8f6c7',
+        fontFamily: 'Arial, sans-serif',
+        fontSize: '13px',
+        fontStyle: 'bold',
+        stroke: '#173328',
+        strokeThickness: 4,
+      }).setOrigin(0.5));
+    });
 
+    const ring = this.add.circle(targetX, 292, 34, 0xffffff, 0)
+      .setStrokeStyle(4, incoming ? (event.noHit ? 0xb4d282 : 0xef9586) : 0xffe58a, 0.9);
+    this.tweens.add({
+      targets: ring,
+      scale: 2.2,
+      alpha: 0,
+      duration: 520,
+      ease: 'Cubic.Out',
+      onComplete: () => ring.destroy(),
+    });
     effect.setAlpha(0.7).setScale(0.8);
     this.tweens.add({
       targets: effect,
-      y: 175,
+      y: incoming ? 185 : 175,
       alpha: 0,
-      scale: 1.05,
-      duration: 900,
+      scale: 1,
+      duration: 1150,
       ease: 'Cubic.Out',
       onComplete: () => effect.destroy(),
     });
-    this.tweens.add({
-      targets: this.monsterSprite,
-      x: 660,
-      duration: 55,
-      yoyo: true,
-      repeat: 2,
-    });
+    if (!event.dodged) {
+      if (incoming) {
+        targetSprite.setTintFill(0xff6b61);
+        this.time.delayedCall(180, () => targetSprite.clearTint());
+        this.tweens.add({
+          targets: targetSprite,
+          x: 220,
+          duration: 55,
+          yoyo: true,
+          repeat: 2,
+        });
+      } else {
+        this.tweens.add({
+          targets: targetSprite,
+          x: 660,
+          duration: 55,
+          yoyo: true,
+          repeat: 2,
+        });
+      }
+    }
   }
 
   clearHand() {
@@ -544,6 +589,39 @@ class MultiplayerTableScene extends Phaser.Scene {
           fontFamily: 'Arial, sans-serif',
           fontSize: '10px',
           fontStyle: 'bold',
+        }).setOrigin(0.5));
+      }
+      if (room.phase === 'battle' && player.lastDamage) {
+        const { lastDamage } = player;
+        const bonusLabels = [];
+        if (lastDamage.hitCount > 0) {
+          bonusLabels.push(`HITS x${lastDamage.hitMultiplier.toFixed(1)}`);
+        }
+        if (lastDamage.matchingPair) bonusLabels.push('PAIR x1.5');
+        if (lastDamage.fiveCardHand) bonusLabels.push('5 CARDS x2');
+        if (lastDamage.doubledDown) bonusLabels.push('DOUBLE x2');
+        if (lastDamage.critical) bonusLabels.push('CRIT x1.5');
+        if (lastDamage.betPercentage > 0) {
+          bonusLabels.push(`WAGER +${lastDamage.betPercentage * 200}%`);
+        }
+        if (lastDamage.itemAttack > 0) bonusLabels.push(`ITEM ATK +${lastDamage.itemAttack}`);
+        if (lastDamage.noHit) bonusLabels.push('GUARD x0.5');
+        if (lastDamage.itemDamageReduction > 0) {
+          bonusLabels.push(`ITEM GUARD -${lastDamage.itemDamageReduction * 100}%`);
+        }
+        if (lastDamage.healed > 0) bonusLabels.push(`HEAL +${lastDamage.healed}`);
+        const damageLabel = lastDamage.dodged
+          ? 'DODGED!'
+          : lastDamage.dealt > 0
+            ? `-${lastDamage.dealt} MONSTER HP`
+            : `-${lastDamage.taken} HP`;
+        this.tableLayer.add(this.add.text(x, y + 63, [damageLabel, ...bonusLabels].join(' · '), {
+          color: lastDamage.noHit ? '#b4d282' : '#ffe58a',
+          fontFamily: 'Arial, sans-serif',
+          fontSize: '9px',
+          fontStyle: 'bold',
+          wordWrap: { width: 210 },
+          align: 'center',
         }).setOrigin(0.5));
       }
       this.drawCards(playerHand, x, y + (room.phase === 'betting' ? 22 : 12), 43, 61);

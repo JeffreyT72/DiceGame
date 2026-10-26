@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import test from 'node:test';
 import { MultiplayerRooms } from './multiplayer.js';
+import { getDungeonMonster } from '../shared/dungeon-multiplayer-config.js';
 
 class TestSocket extends EventEmitter {
   readyState = 1;
@@ -243,7 +244,46 @@ test('automatically stands after the active player reaches the 30-second deadlin
   sockets[1].receive({ type: 'action', action: 'stand' });
   const revealed = latestRoomState(sockets[0]);
   assert.equal(revealed.phase, 'battle');
-  assert.equal(revealed.players.find(({ id }) => id === 'player-1').playerHp, 179);
+  assert.equal(revealed.players.find(({ id }) => id === 'player-1').playerHp, 190);
+});
+
+test('multiplayer attacks apply matching-pair and five-card damage bonuses', () => {
+  const { rooms } = createRoomFixture({ strength: 0 });
+  const room = rooms.rooms.get('ABC234');
+  room.monsterHp = 500;
+  const monsterDefense = getDungeonMonster(room.dungeon, room.stage).defense;
+  const pairPlayer = room.players.get('player-1');
+  pairPlayer.hand = { state: {
+    outcome: 'player_win',
+    playerHand: [{ rank: '10' }, { rank: '10' }],
+    dealerHand: [{ rank: '10' }, { rank: '8' }],
+    hitCount: 0,
+    hitMultiplier: 1,
+    doubledDown: false,
+  } };
+  const fiveCardPlayer = room.players.get('player-2');
+  fiveCardPlayer.hand = { state: {
+    outcome: 'player_win',
+    playerHand: [
+      { rank: '2' },
+      { rank: '3' },
+      { rank: '4' },
+      { rank: '5' },
+      { rank: '6' },
+    ],
+    dealerHand: [{ rank: '10' }, { rank: '8' }],
+    hitCount: 3,
+    hitMultiplier: 1.6,
+    doubledDown: false,
+  } };
+
+  rooms.resolveHand(room, pairPlayer);
+  rooms.resolveHand(room, fiveCardPlayer);
+
+  assert.equal(pairPlayer.lastDamage.dealt, Math.floor((20 - monsterDefense) * 1.5));
+  assert.equal(pairPlayer.lastDamage.matchingPair, true);
+  assert.equal(fiveCardPlayer.lastDamage.dealt, Math.floor((20 - monsterDefense) * 1.6 * 2));
+  assert.equal(fiveCardPlayer.lastDamage.fiveCardHand, true);
 });
 
 test('limits rooms to four players and transfers host status after disconnect', () => {

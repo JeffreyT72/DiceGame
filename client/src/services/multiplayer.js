@@ -15,8 +15,11 @@ export function connectMultiplayer({ onMessage, onOpen, onClose, onError }) {
     onMessage(message);
   });
   return {
+    isReady() {
+      return socket.readyState === WebSocket.OPEN;
+    },
     send(message) {
-      if (socket.readyState !== WebSocket.OPEN) {
+      if (!this.isReady()) {
         throw new Error('Multiplayer connection is not ready.');
       }
       socket.send(JSON.stringify(message));
