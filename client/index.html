@@ -120,7 +120,17 @@
                 <p class="battlefield-player-level">Player level <strong id="dungeon-player-level">Level 1</strong></p>
               </section>
 
-              <p id="dungeon-progress" class="dungeon-progress">Your next run is ready when you are.</p>
+              <section class="dungeon-progress-panel" aria-label="Dungeon stage progression">
+                <div class="dungeon-progress-heading">
+                  <div>
+                    <span class="dungeon-progress-kicker">Expedition path</span>
+                    <h2>Stage progression</h2>
+                  </div>
+                  <span id="dungeon-stage-count" class="dungeon-stage-count">No active run</span>
+                </div>
+                <p id="dungeon-progress" class="dungeon-progress">Your next run is ready when you are.</p>
+                <ol id="dungeon-timeline" class="dungeon-timeline" aria-label="Dungeon stages" hidden></ol>
+              </section>
 
               <section id="battlefield" class="table battlefield-table" aria-label="Hero and monster battlefield">
                 <div id="battlefield-game"></div>
@@ -271,6 +281,13 @@
               <option value="adventurer-male">Adventurer (Male)</option>
               <option value="mel">Mel</option>
             </select>
+          </div>
+          <div class="settings-field music-field">
+            <label for="music-volume">Background music</label>
+            <div class="music-controls">
+              <input id="music-volume" type="range" min="0" max="1" step="0.05" value="0.3" aria-label="Background music volume" />
+              <button id="music-toggle" class="button button-secondary" type="button" aria-label="Mute background music">Mute</button>
+            </div>
           </div>
           <p id="settings-status" class="settings-status" role="status" aria-live="polite"></p>
         </section>

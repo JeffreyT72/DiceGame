@@ -2,7 +2,11 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import test from 'node:test';
 import { MultiplayerRooms } from './multiplayer.js';
-import { getDungeonMonster } from '../shared/dungeon-multiplayer-config.js';
+import {
+  dungeons_multiplayer,
+  getDungeonMonster,
+  getMultiplayerMonsterHp,
+} from '../shared/dungeon-multiplayer-config.js';
 
 class TestSocket extends EventEmitter {
   readyState = 1;
@@ -310,6 +314,21 @@ test('limits rooms to four players and transfers host status after disconnect', 
 
   sockets[0].emit('close');
   assert.equal(latestRoomState(sockets[1]).hostId, 'player-2');
+});
+
+test('monster HP scales up with diminishing returns as more players fill the room', () => {
+  const base = getDungeonMonster(dungeons_multiplayer[0], 1);
+  const hpByCount = [1, 2, 3, 4].map((count) => getMultiplayerMonsterHp(dungeons_multiplayer[0], 1, count));
+
+  assert.equal(hpByCount[0], base.hp);
+  assert.equal(hpByCount[1], Math.round(base.hp * 1.5));
+  assert.equal(hpByCount[2], Math.round(base.hp * 1.6666666666666667));
+  assert.equal(hpByCount[3], Math.round(base.hp * 1.75));
+  assert.ok(hpByCount[1] > hpByCount[0]);
+  assert.ok(hpByCount[2] > hpByCount[1]);
+  assert.ok(hpByCount[3] > hpByCount[2]);
+  assert.ok(hpByCount[1] - hpByCount[0] > hpByCount[2] - hpByCount[1]);
+  assert.ok(hpByCount[2] - hpByCount[1] > hpByCount[3] - hpByCount[2]);
 });
 
 test('awards the configured dungeon reward when the final stage is cleared', () => {

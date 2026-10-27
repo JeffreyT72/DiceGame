@@ -13,6 +13,7 @@ import {
   dungeons_multiplayer,
   getDungeonMonster,
   getDungeonStageCount,
+  getMultiplayerMonsterHp,
 } from '../shared/dungeon-multiplayer-config.js';
 
 const maxPlayers = 4;
@@ -142,7 +143,7 @@ export class MultiplayerRooms {
       dungeon: dungeons_multiplayer[0],
       stage: 1,
       round: 0,
-      monsterHp: getDungeonMonster(dungeons_multiplayer[0], 1).hp,
+      monsterHp: getMultiplayerMonsterHp(dungeons_multiplayer[0], 1, 1),
       dealerHand: null,
       dealerDeck: null,
       dealerRevealed: false,
@@ -234,7 +235,7 @@ export class MultiplayerRooms {
       return;
     }
     room.round = 1;
-    room.monsterHp = getDungeonMonster(room.dungeon, room.stage).hp;
+    room.monsterHp = getMultiplayerMonsterHp(room.dungeon, room.stage, room.players.size);
     this.beginBetting(room);
   }
 
@@ -562,7 +563,7 @@ export class MultiplayerRooms {
     room.stage += 1;
     room.round = 1;
     room.actedPlayerIds.clear();
-    room.monsterHp = getDungeonMonster(room.dungeon, room.stage).hp;
+    room.monsterHp = getMultiplayerMonsterHp(room.dungeon, room.stage, room.players.size);
     room.phase = 'betting';
     room.lastMessage = `Stage ${room.stage} begins. Place your wager.`;
     this.beginBetting(room);

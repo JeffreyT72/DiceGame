@@ -46,6 +46,24 @@ export function getDungeonMonster(dungeon, stage) {
   return dungeon.mobs[(stage - 1) % dungeon.mobs.length];
 }
 
+export function getMultiplayerMonsterScale(playerCount) {
+  const count = Number.isInteger(playerCount) && playerCount > 0 ? playerCount : 1;
+  if (count <= 1) {
+    return 1;
+  }
+
+  return 1 + (count - 1) / count;
+}
+
+export function getMultiplayerMonsterHp(dungeon, stage, playerCount) {
+  const monster = getDungeonMonster(dungeon, stage);
+  if (!monster) {
+    return 0;
+  }
+
+  return Math.max(1, Math.round(monster.hp * getMultiplayerMonsterScale(playerCount)));
+}
+
 export function meetsDungeonLevelRequirement(dungeon, playerLevel) {
   if (!dungeon || !Number.isFinite(playerLevel)) {
     return false;

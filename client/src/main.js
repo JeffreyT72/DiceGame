@@ -1,4 +1,5 @@
 import './style.css';
+import backgroundMusicUrl from './assets/music/lofi-hip-hop1.mp3';
 import { createBlackjackGame } from './blackjack-scene.js';
 import { characters } from './characters.js';
 import { request } from './services/api.js';
@@ -19,6 +20,61 @@ import {
 
 const cardActionDelayMs = 200;
 const expRequiredForNextLevel = (level) => level * 100;
+
+const backgroundMusic = new Audio(backgroundMusicUrl);
+backgroundMusic.loop = true;
+backgroundMusic.volume = 0.3;
+backgroundMusic.preload = 'auto';
+
+const musicVolume = document.querySelector('#music-volume');
+const musicToggle = document.querySelector('#music-toggle');
+
+function syncMusicControls() {
+  const isMuted = backgroundMusic.muted || backgroundMusic.volume === 0;
+  musicToggle.textContent = isMuted ? 'Unmute' : 'Mute';
+  musicToggle.setAttribute('aria-label', isMuted ? 'Unmute background music' : 'Mute background music');
+  musicVolume.value = String(isMuted ? 0 : backgroundMusic.volume);
+}
+
+function startBackgroundMusic() {
+  if (backgroundMusic.paused) {
+    const playAttempt = backgroundMusic.play();
+    if (playAttempt) {
+      playAttempt.catch(() => {
+        backgroundMusic.muted = true;
+        syncMusicControls();
+      });
+    }
+  }
+}
+
+musicVolume.addEventListener('input', (event) => {
+  const nextVolume = Number(event.target.value) || 0;
+  backgroundMusic.volume = nextVolume;
+  backgroundMusic.muted = nextVolume === 0;
+  syncMusicControls();
+
+  if (nextVolume > 0) {
+    startBackgroundMusic();
+  }
+});
+
+musicToggle.addEventListener('click', () => {
+  if (backgroundMusic.muted || backgroundMusic.volume === 0) {
+    backgroundMusic.muted = false;
+    backgroundMusic.volume = Number(musicVolume.value) || 0.3;
+    startBackgroundMusic();
+  } else {
+    backgroundMusic.muted = true;
+  }
+  syncMusicControls();
+});
+
+document.addEventListener('pointerdown', startBackgroundMusic, { once: true });
+document.addEventListener('keydown', startBackgroundMusic, { once: true });
+
+startBackgroundMusic();
+syncMusicControls();
 
 let game = null;
 let currentGame = null;
@@ -49,6 +105,8 @@ const wagerButtons = document.querySelectorAll('[data-wager]');
 const suggestedLevel = document.querySelector('#suggested-level');
 const status = document.querySelector('#status');
 const dungeonProgress = document.querySelector('#dungeon-progress');
+const dungeonStageCount = document.querySelector('#dungeon-stage-count');
+const dungeonTimeline = document.querySelector('#dungeon-timeline');
 const battlefield = document.querySelector('#battlefield');
 const lootPanel = document.querySelector('#loot-panel');
 const accountName = document.querySelector('#account-name');
@@ -248,6 +306,9 @@ function renderControls() {
   if (!runState) {
     document.querySelector('#active-dungeon-name').textContent = '';
     dungeonProgress.textContent = 'Your next run is ready when you are.';
+    dungeonStageCount.textContent = 'No active run';
+    dungeonTimeline.hidden = true;
+    dungeonTimeline.replaceChildren();
   } else {
     const stageCount = currentStageCount();
     const label = runState.stage === stageCount ? 'Boss' : 'Mob';
@@ -257,6 +318,48 @@ function renderControls() {
         ? `${runState.dungeon.name} · Defeated on stage ${runState.stage} of ${stageCount}`
         : `${runState.dungeon.name} · Stage ${runState.stage} of ${stageCount} · ${label} · ${runState.items.length} item${runState.items.length === 1 ? '' : 's'} collected`;
     document.querySelector('#active-dungeon-name').textContent = runState.dungeon.name;
+    dungeonStageCount.textContent = runState.phase === 'complete'
+      ? `${stageCount} / ${stageCount} cleared`
+      : runState.phase === 'failed'
+        ? `${runState.stage} / ${stageCount} · Defeated`
+        : `${runState.stage} / ${stageCount} stages`;
+    dungeonTimeline.hidden = false;
+    const stages = document.createDocumentFragment();
+    for (let stage = 1; stage <= stageCount; stage += 1) {
+      const monster = getDungeonMonster(runState.dungeon, stage);
+      const stageState = runState.phase === 'complete'
+        || stage < runState.stage
+        || (stage === runState.stage && runState.phase === 'loot')
+        ? 'completed'
+        : stage === runState.stage && runState.phase === 'failed'
+          ? 'defeated'
+          : stage === runState.stage && runState.phase === 'clearing'
+            ? 'clearing'
+            : stage === runState.stage
+              ? 'current'
+              : 'upcoming';
+      const entry = document.createElement('li');
+      entry.className = `dungeon-stage dungeon-stage-${stageState}`;
+      const stageMarker = document.createElement('span');
+      stageMarker.className = 'dungeon-stage-marker';
+      stageMarker.textContent = stageState === 'completed' ? '✓' : String(stage);
+      const stageLabel = document.createElement('span');
+      stageLabel.className = 'dungeon-stage-label';
+      stageLabel.textContent = stage === stageCount ? 'Boss' : `Stage ${stage}`;
+      const encounter = document.createElement('span');
+      encounter.className = 'dungeon-stage-encounter';
+      encounter.textContent = monster?.name ?? 'Encounter';
+      entry.setAttribute(
+        'aria-label',
+        `Stage ${stage} of ${stageCount}: ${monster?.name ?? 'Encounter'}, ${stageState}`,
+      );
+      if (stageState === 'current' || stageState === 'clearing' || stageState === 'defeated') {
+        entry.setAttribute('aria-current', 'step');
+      }
+      entry.append(stageMarker, stageLabel, encounter);
+      stages.append(entry);
+    }
+    dungeonTimeline.replaceChildren(stages);
   }
 }
 

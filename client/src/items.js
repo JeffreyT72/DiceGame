@@ -106,7 +106,7 @@ export function getItem(itemId) {
   return itemsById.get(itemId);
 }
 
-export function getItemEffects(collectedItems) {
+export function getItemEffects(collectedItems = []) {
   const effects = {
     attack: 0,
     damageReduction: 0,
@@ -119,6 +119,10 @@ export function getItemEffects(collectedItems) {
     healing: 0,
     hitMultiplier: 0,
   };
+
+  if (!Array.isArray(collectedItems)) {
+    return effects;
+  }
 
   for (const collectedItem of collectedItems) {
     if (!collectedItem || typeof collectedItem.itemId !== 'string') continue;
@@ -146,11 +150,24 @@ export function chooseItemOptions(count = 3, random = Math.random) {
 
   while (choices.length < count && availableItems.length > 0) {
     const totalChance = availableItems.reduce((total, item) => total + item.chance, 0);
-    let roll = random() * totalChance;
-    const selectedIndex = availableItems.findIndex((item) => {
-      roll -= item.chance;
-      return roll < 0;
-    });
+    if (totalChance <= 0) break;
+
+    let roll = Math.min(Math.max(random(), 0), 0.9999999999999999) * totalChance;
+    let cumulativeChance = 0;
+    let selectedIndex = -1;
+
+    for (let index = 0; index < availableItems.length; index += 1) {
+      cumulativeChance += availableItems[index].chance;
+      if (roll <= cumulativeChance) {
+        selectedIndex = index;
+        break;
+      }
+    }
+
+    if (selectedIndex === -1) {
+      selectedIndex = availableItems.length - 1;
+    }
+
     const [selectedItem] = availableItems.splice(selectedIndex, 1);
     choices.push(selectedItem.id);
   }
