@@ -111,6 +111,7 @@ const battlefield = document.querySelector('#battlefield');
 const lootPanel = document.querySelector('#loot-panel');
 const accountName = document.querySelector('#account-name');
 const lobbyCurrency = document.querySelector('#lobby-currency');
+const storeCurrency = document.querySelector('#store-currency');
 const characterSelect = document.querySelector('#character-select');
 const settingsStatus = document.querySelector('#settings-status');
 
@@ -189,7 +190,9 @@ function applyTotalExp(totalExp) {
 }
 
 function renderCurrency() {
-  lobbyCurrency.textContent = new Intl.NumberFormat().format(currentStats.currency);
+  const formattedCurrency = new Intl.NumberFormat().format(currentStats.currency);
+  lobbyCurrency.textContent = formattedCurrency;
+  storeCurrency.textContent = formattedCurrency;
 }
 
 function currentMonster() {
@@ -665,6 +668,7 @@ const screens = createScreenController({
     characterSelect.value = selectedCharacter;
     settingsStatus.textContent = characterSettingsMessage;
   },
+  onOpenStore: renderCurrency,
 });
 const auth = createAuthController({
   onAuthenticated: enterGame,

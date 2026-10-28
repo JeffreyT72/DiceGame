@@ -629,6 +629,62 @@ h1 {
   margin-bottom: 18px;
 }
 
+.store-currency {
+  margin: 0 0 18px;
+  color: #aebbb3;
+}
+
+.store-currency strong {
+  margin-left: 8px;
+  color: #b4d282;
+}
+
+.store-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.store-tab {
+  min-height: 44px;
+  border: 1px solid #35473e;
+  border-radius: 10px;
+  background: #131e1a;
+  color: #d1d9d2;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+
+.store-tab[aria-selected="true"] {
+  border-color: #b4d282;
+  background: #b4d282;
+  color: #172219;
+}
+
+.store-tab:focus-visible {
+  outline: 3px solid #f1f4ef;
+  outline-offset: 2px;
+}
+
+.store-content {
+  min-height: 180px;
+  padding: 22px;
+  border: 1px solid #35473e;
+  border-radius: 12px;
+  background: #131e1a;
+}
+
+.store-panel h3 {
+  margin: 0 0 10px;
+}
+
+.store-panel p {
+  margin: 0;
+  color: #aebbb3;
+}
+
 .multiplayer-entry {
   display: flex;
   align-items: end;

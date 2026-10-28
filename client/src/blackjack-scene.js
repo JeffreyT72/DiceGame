@@ -7,10 +7,10 @@ const suitSymbols = {
   hearts: '♥',
   spades: '♠',
 };
-const heroIdleFrames = [27, 132, 237, 342];
-const heroFrameWidth = 110;
+const heroIdleFrames = [15, 125, 235, 345];
+const heroFrameWidth = 100;
 const heroFrameHeight = 190;
-const heroFrameTop = 40;
+const heroFrameTop = 45;
 
 class BlackjackScene extends Phaser.Scene {
   constructor() {
@@ -266,7 +266,7 @@ class BlackjackScene extends Phaser.Scene {
       targets: ring,
       scale: 2.2,
       alpha: 0,
-      duration: 520,
+      duration: 780,
       ease: 'Cubic.Out',
       onComplete: () => ring.destroy(),
     });
@@ -276,18 +276,18 @@ class BlackjackScene extends Phaser.Scene {
       y: incoming ? 185 : 175,
       alpha: 0,
       scale: 1,
-      duration: 1150,
+      duration: 1700,
       ease: 'Cubic.Out',
       onComplete: () => effect.destroy(),
     });
     if (!event.dodged) {
       if (incoming) {
         targetSprite.setTintFill(0xff6b61);
-        this.time.delayedCall(180, () => targetSprite.clearTint());
+        this.time.delayedCall(270, () => targetSprite.clearTint());
         this.tweens.add({
           targets: targetSprite,
           x: 220,
-          duration: 55,
+          duration: 85,
           yoyo: true,
           repeat: 2,
         });
@@ -295,7 +295,7 @@ class BlackjackScene extends Phaser.Scene {
         this.tweens.add({
           targets: targetSprite,
           x: 660,
-          duration: 55,
+          duration: 85,
           yoyo: true,
           repeat: 2,
         });

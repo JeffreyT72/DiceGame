@@ -65,6 +65,9 @@
             <button id="lab-button" class="lobby-option" type="button">
               <strong>Lab</strong><span>Perma character stats</span>
             </button>
+            <button id="store-button" class="lobby-option" type="button">
+              <strong>Store</strong><span>Browse titles, avatars, and frames</span>
+            </button>
             <button id="leaderboard-button" class="lobby-option" type="button">
               <strong>Leaderboard</strong><span>Top adventurers by EXP</span>
             </button>
@@ -250,6 +253,33 @@
             </article>
           </div>
         </section>
+        </section>
+
+        <section id="store-screen" class="screen-panel" aria-labelledby="store-title" hidden>
+          <button class="button button-quiet screen-back" type="button" data-back-to-lobby>Back to game menu</button>
+          <p class="eyebrow">Adventurer wardrobe</p>
+          <h2 id="store-title">Store</h2>
+          <p class="screen-description">Customize how your adventurer appears around the game.</p>
+          <p class="store-currency">Available currency <strong id="store-currency">0</strong></p>
+          <div class="store-tabs" role="tablist" aria-label="Store categories">
+            <button id="store-tab-title" class="store-tab" type="button" role="tab" aria-selected="true" aria-controls="store-panel-title">Title</button>
+            <button id="store-tab-avatar" class="store-tab" type="button" role="tab" aria-selected="false" aria-controls="store-panel-avatar" tabindex="-1">Avatar</button>
+            <button id="store-tab-frame" class="store-tab" type="button" role="tab" aria-selected="false" aria-controls="store-panel-frame" tabindex="-1">Frame</button>
+          </div>
+          <div class="store-content">
+            <section id="store-panel-title" class="store-panel" role="tabpanel" aria-labelledby="store-tab-title">
+              <h3>Titles</h3>
+              <p>No titles are available yet.</p>
+            </section>
+            <section id="store-panel-avatar" class="store-panel" role="tabpanel" aria-labelledby="store-tab-avatar" hidden>
+              <h3>Avatars</h3>
+              <p>No avatars are available yet.</p>
+            </section>
+            <section id="store-panel-frame" class="store-panel" role="tabpanel" aria-labelledby="store-tab-frame" hidden>
+              <h3>Frames</h3>
+              <p>No frames are available yet.</p>
+            </section>
+          </div>
         </section>
 
         <section id="leaderboard-screen" class="screen-panel" aria-labelledby="leaderboard-title" hidden>
