@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import { characters } from './characters.js';
+import { characters, characterSpriteLayout } from './characters.js';
+import { PaperDoll } from './paper-doll.js';
 
 const suitSymbols = {
   clubs: '♣',
@@ -7,11 +8,6 @@ const suitSymbols = {
   hearts: '♥',
   spades: '♠',
 };
-const heroIdleFrames = [15, 125, 235, 345];
-const heroFrameWidth = 100;
-const heroFrameHeight = 190;
-const heroFrameTop = 45;
-
 class BlackjackScene extends Phaser.Scene {
   constructor() {
     super('blackjack');
@@ -20,6 +16,7 @@ class BlackjackScene extends Phaser.Scene {
     this.combatState = { playerHp: 100, monsterHp: 100 };
     this.selectedCharacter = 'adventurer';
     this.heroSprite = null;
+    this.paperDoll = null;
     this.lastDamageGameId = null;
     this.renderedGameId = null;
     this.renderedCardCounts = { dealer: 0, player: 0 };
@@ -49,50 +46,43 @@ class BlackjackScene extends Phaser.Scene {
 
   createHeroIdleTexture(characterId) {
     const textureKey = `hero-idle-${characterId}`;
-    const animationKey = `hero-idle-${characterId}`;
     if (this.textures.exists(textureKey)) {
       return;
     }
 
     const sheet = this.textures.get(`hero-sprite-sheet-${characterId}`).getSourceImage();
     const canvas = document.createElement('canvas');
-    canvas.width = heroFrameWidth * heroIdleFrames.length;
-    canvas.height = heroFrameHeight;
+    const character = characters.find(({ id }) => id === characterId) ?? characters[0];
+    const layout = character.spriteLayout ?? characterSpriteLayout;
+    const { idleFrames, frameWidth, frameHeight, frameTop } = layout;
+    canvas.width = frameWidth * idleFrames.length;
+    canvas.height = frameHeight;
     const context = canvas.getContext('2d');
 
-    heroIdleFrames.forEach((frameX, frameIndex) => {
+    idleFrames.forEach((frameX, frameIndex) => {
       context.drawImage(
         sheet,
         frameX,
-        heroFrameTop,
-        heroFrameWidth,
-        heroFrameHeight,
-        frameIndex * heroFrameWidth,
+        frameTop,
+        frameWidth,
+        frameHeight,
+        frameIndex * frameWidth,
         0,
-        heroFrameWidth,
-        heroFrameHeight,
+        frameWidth,
+        frameHeight,
       );
     });
 
     const texture = this.textures.addCanvas(textureKey, canvas);
-    heroIdleFrames.forEach((_, frameIndex) => {
+    idleFrames.forEach((_, frameIndex) => {
       texture.add(
         `idle-${frameIndex}`,
         0,
-        frameIndex * heroFrameWidth,
+        frameIndex * frameWidth,
         0,
-        heroFrameWidth,
-        heroFrameHeight,
+        frameWidth,
+        frameHeight,
       );
-    });
-    this.anims.create({
-      key: animationKey,
-      frames: heroIdleFrames.map((_, frameIndex) => ({
-        key: textureKey,
-        frame: `idle-${frameIndex}`,
-      })),
-      frameRate: 4,
-      repeat: -1,
     });
   }
 
@@ -101,9 +91,14 @@ class BlackjackScene extends Phaser.Scene {
     this.selectedCharacter = character.id;
     this.registry.set('selectedCharacter', character.id);
     this.createHeroIdleTexture(character.id);
-    if (this.heroSprite) {
-      this.heroSprite.setTexture(`hero-idle-${character.id}`, 'idle-0');
-      this.heroSprite.play(`hero-idle-${character.id}`);
+    if (this.paperDoll) {
+      const layout = character.spriteLayout ?? characterSpriteLayout;
+      this.paperDoll.setLayer(
+        'body',
+        `hero-idle-${character.id}`,
+        layout.idleFrames.map((_, frameIndex) => `idle-${frameIndex}`),
+      );
+      this.heroSprite.setScale(character.displayScale ?? 1.25);
     }
     this.heroLabel?.setText(character.name.toUpperCase());
   }
@@ -140,12 +135,15 @@ class BlackjackScene extends Phaser.Scene {
 
   drawHero(x, y) {
     this.add.ellipse(x, y + 66, 86, 16, 0x062d23, 0.8);
-    this.heroSprite = this.add.sprite(
-      x,
-      y,
+    this.paperDoll = new PaperDoll(this, x, y);
+    const character = characters.find(({ id }) => id === this.selectedCharacter) ?? characters[0];
+    const layout = character.spriteLayout ?? characterSpriteLayout;
+    this.paperDoll.setLayer(
+      'body',
       `hero-idle-${this.selectedCharacter}`,
-      'idle-0',
-    ).setScale(1.25).play(`hero-idle-${this.selectedCharacter}`);
+      layout.idleFrames.map((_, frameIndex) => `idle-${frameIndex}`),
+    );
+    this.heroSprite = this.paperDoll.container.setScale(character.displayScale ?? 1.25);
   }
 
   drawMonster(x, y) {

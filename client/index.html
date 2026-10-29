@@ -306,12 +306,23 @@
           <p class="screen-description">Choose the character you want to take into the dungeon.</p>
           <div class="settings-field">
             <label for="character-select">Player character</label>
-            <select id="character-select">
-              <option value="adventurer">Adventurer</option>
-              <option value="adventurer-male">Adventurer (Male)</option>
-              <option value="mel">Mel</option>
-            </select>
+            <select id="character-select"></select>
           </div>
+          <section class="paper-doll-customizer" aria-labelledby="paper-doll-title">
+            <h3 id="paper-doll-title">Character appearance</h3>
+            <div class="paper-doll-layout">
+              <div class="paper-doll-preview">
+                <canvas id="paper-doll-preview" width="160" height="240" role="img"
+                  aria-label="Adventurer character preview">Character preview</canvas>
+              </div>
+              <div class="paper-doll-equipment">
+                <h4>Equipment</h4>
+                <ul id="paper-doll-slots" class="paper-doll-slots"></ul>
+              </div>
+            </div>
+            <p class="paper-doll-note">Wearable options will appear here as matching art is added.</p>
+            <p id="paper-doll-preview-status" class="paper-doll-preview-status" role="status" aria-live="polite"></p>
+          </section>
           <div class="settings-field music-field">
             <label for="music-volume">Background music</label>
             <div class="music-controls">

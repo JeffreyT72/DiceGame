@@ -10,6 +10,7 @@ import { createDungeonCatalog } from './ui/dungeon-catalog.js';
 import { createLeaderboardController } from './ui/leaderboard.js';
 import { createLootRenderer } from './ui/loot.js';
 import { createMultiplayerController } from './ui/multiplayer.js';
+import { createPaperDollCustomizer } from './ui/paper-doll-customizer.js';
 import { createScreenController } from './ui/screens.js';
 import { chooseItemOptions, getItem, getItemEffects } from './items.js';
 import {
@@ -114,9 +115,21 @@ const lobbyCurrency = document.querySelector('#lobby-currency');
 const storeCurrency = document.querySelector('#store-currency');
 const characterSelect = document.querySelector('#character-select');
 const settingsStatus = document.querySelector('#settings-status');
+characterSelect.replaceChildren(...characters.map(({ id, name }) => {
+  const option = document.createElement('option');
+  option.value = id;
+  option.textContent = name;
+  return option;
+}));
+const paperDollCustomizer = createPaperDollCustomizer({
+  canvas: document.querySelector('#paper-doll-preview'),
+  slotsElement: document.querySelector('#paper-doll-slots'),
+  statusElement: document.querySelector('#paper-doll-preview-status'),
+});
 
 let selectedCharacter = characters[0].id;
 let characterSettingsMessage = '';
+paperDollCustomizer.render(selectedCharacter);
 
 characterSelect.addEventListener('change', async () => {
   const character = characters.find(({ id }) => id === characterSelect.value);
@@ -141,6 +154,7 @@ characterSelect.addEventListener('change', async () => {
     characterSettingsMessage = `Could not save ${character.name}: ${error.message}`;
   } finally {
     characterSelect.disabled = false;
+    paperDollCustomizer.render(selectedCharacter);
   }
   settingsStatus.textContent = characterSettingsMessage;
 });
@@ -513,6 +527,7 @@ async function enterGame(account) {
     ? currentStats.character
     : characters[0].id;
   characterSelect.value = selectedCharacter;
+  paperDollCustomizer.render(selectedCharacter);
   game?.battlefield.scene.getScene('blackjack')?.setCharacter(selectedCharacter);
   applyTotalExp(account.stats.totalExp);
   renderCurrency();
@@ -666,6 +681,7 @@ const screens = createScreenController({
   ),
   onOpenSettings: () => {
     characterSelect.value = selectedCharacter;
+    paperDollCustomizer.render(selectedCharacter);
     settingsStatus.textContent = characterSettingsMessage;
   },
   onOpenStore: renderCurrency,
