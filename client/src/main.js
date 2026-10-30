@@ -2,6 +2,8 @@ import './style.css';
 import backgroundMusicUrl from './assets/music/lofi-hip-hop1.mp3';
 import { createBlackjackGame } from './blackjack-scene.js';
 import { characters } from './characters.js';
+import deepTealPreview from './assets/tables/static/062633.png';
+import berryPreview from './assets/tables/static/630632.png';
 import { request } from './services/api.js';
 import { outcomeMessage, resolveCombatRound } from './game/combat.js';
 import { createAuthController } from './ui/auth.js';
@@ -18,6 +20,7 @@ import {
   getDungeonMonster,
   getDungeonStageCount,
 } from '../../shared/dungeon-config.js';
+import { tableThemes } from '../../shared/table-themes.js';
 
 const cardActionDelayMs = 200;
 const expRequiredForNextLevel = (level) => level * 100;
@@ -91,6 +94,8 @@ let currentStats = {
   character: characters[0].id,
   title: '',
   frame: '',
+  tableTheme: 'default',
+  ownedTableThemes: ['default'],
 };
 let runState = null;
 let resolvingStage = false;
@@ -113,6 +118,8 @@ const lootPanel = document.querySelector('#loot-panel');
 const accountName = document.querySelector('#account-name');
 const lobbyCurrency = document.querySelector('#lobby-currency');
 const storeCurrency = document.querySelector('#store-currency');
+const tableThemeList = document.querySelector('#table-theme-list');
+const tableThemeStatus = document.querySelector('#table-theme-status');
 const characterSelect = document.querySelector('#character-select');
 const settingsStatus = document.querySelector('#settings-status');
 characterSelect.replaceChildren(...characters.map(({ id, name }) => {
@@ -129,6 +136,12 @@ const paperDollCustomizer = createPaperDollCustomizer({
 
 let selectedCharacter = characters[0].id;
 let characterSettingsMessage = '';
+let tableThemeMessage = '';
+let tableThemeAction = null;
+const tableThemePreviews = {
+  '062633': deepTealPreview,
+  '630632': berryPreview,
+};
 paperDollCustomizer.render(selectedCharacter);
 
 characterSelect.addEventListener('change', async () => {
@@ -207,6 +220,78 @@ function renderCurrency() {
   const formattedCurrency = new Intl.NumberFormat().format(currentStats.currency);
   lobbyCurrency.textContent = formattedCurrency;
   storeCurrency.textContent = formattedCurrency;
+}
+
+function renderTableThemes() {
+  const ownedThemes = new Set(currentStats.ownedTableThemes ?? ['default']);
+  const cards = document.createDocumentFragment();
+  for (const theme of tableThemes) {
+    const card = document.createElement('article');
+    card.className = 'table-theme-card';
+    const previewSource = tableThemePreviews[theme.id];
+    const preview = document.createElement(previewSource ? 'img' : 'div');
+    preview.className = 'table-theme-preview';
+    if (previewSource) {
+      preview.src = previewSource;
+      preview.alt = `${theme.name} table preview`;
+    } else {
+      preview.setAttribute('role', 'img');
+      preview.setAttribute('aria-label', `${theme.name} table preview`);
+      preview.style.backgroundColor = `#${theme.color}`;
+    }
+
+    const title = document.createElement('h4');
+    title.textContent = theme.name;
+    const action = document.createElement('button');
+    action.className = `button ${ownedThemes.has(theme.id) ? 'button-secondary' : 'button-primary'}`;
+    action.type = 'button';
+    const isActive = currentStats.tableTheme === theme.id;
+    action.textContent = isActive
+      ? 'In use'
+      : ownedThemes.has(theme.id)
+        ? 'Apply'
+        : `Purchase · ${theme.price} currency`;
+    action.disabled = Boolean(tableThemeAction) || isActive;
+    action.addEventListener('click', () => {
+      void updateTableTheme(theme, ownedThemes.has(theme.id) ? 'apply' : 'purchase');
+    });
+    card.append(preview, title, action);
+    cards.append(card);
+  }
+  tableThemeList.replaceChildren(cards);
+  tableThemeStatus.textContent = tableThemeMessage;
+}
+
+async function updateTableTheme(theme, action) {
+  tableThemeAction = theme.id;
+  tableThemeMessage = '';
+  renderTableThemes();
+  try {
+    const result = await request(
+      action === 'purchase' ? '/api/player/tables/purchase' : '/api/player/table-theme',
+      {
+        method: action === 'purchase' ? 'POST' : 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(action === 'purchase'
+          ? { tableId: theme.id }
+          : { tableTheme: theme.id }),
+      },
+    );
+    currentStats = result.stats;
+    renderCurrency();
+    if (action === 'apply') {
+      game?.cards.scene.getScene('blackjack')?.setTableTheme(theme.id);
+      tableThemeMessage = `${theme.name} applied to your card table.`;
+    } else {
+      tableThemeMessage = `${theme.name} purchased. Apply it when you are ready.`;
+    }
+  } catch (error) {
+    console.error(error);
+    tableThemeMessage = `Could not ${action === 'purchase' ? 'purchase' : 'apply'} ${theme.name}: ${error.message}`;
+  } finally {
+    tableThemeAction = null;
+    renderTableThemes();
+  }
 }
 
 function currentMonster() {
@@ -523,12 +608,14 @@ async function chooseItem(itemId) {
 async function enterGame(account) {
   currentPlayer = account.user;
   currentStats = account.stats;
+  tableThemeMessage = '';
   selectedCharacter = characters.some(({ id }) => id === currentStats.character)
     ? currentStats.character
     : characters[0].id;
   characterSelect.value = selectedCharacter;
   paperDollCustomizer.render(selectedCharacter);
   game?.battlefield.scene.getScene('blackjack')?.setCharacter(selectedCharacter);
+  game?.cards.scene.getScene('blackjack')?.setTableTheme(currentStats.tableTheme);
   applyTotalExp(account.stats.totalExp);
   renderCurrency();
   accountName.textContent = currentPlayer.username;
@@ -543,7 +630,12 @@ async function startGame(selectedDungeon) {
   quitButton.disabled = true;
   try {
     screens.show('dungeon');
-    game ??= createBlackjackGame('game', 'battlefield-game', selectedCharacter);
+    game ??= createBlackjackGame(
+      'game',
+      'battlefield-game',
+      selectedCharacter,
+      currentStats.tableTheme,
+    );
     await beginDungeon(selectedDungeon);
   } finally {
     startGameButton.disabled = false;
@@ -684,7 +776,10 @@ const screens = createScreenController({
     paperDollCustomizer.render(selectedCharacter);
     settingsStatus.textContent = characterSettingsMessage;
   },
-  onOpenStore: renderCurrency,
+  onOpenStore: () => {
+    renderCurrency();
+    renderTableThemes();
+  },
 });
 const auth = createAuthController({
   onAuthenticated: enterGame,

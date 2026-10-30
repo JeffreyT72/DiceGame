@@ -719,7 +719,7 @@ h1 {
 
 .store-tabs {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
   margin-bottom: 12px;
 }
@@ -761,6 +761,52 @@ h1 {
 .store-panel p {
   margin: 0;
   color: #aebbb3;
+}
+
+.store-earning-note {
+  margin: -10px 0 18px;
+  color: #aebbb3;
+  font-size: 0.88rem;
+}
+
+.table-theme-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.table-theme-card {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #35473e;
+  border-radius: 12px;
+  background: #101a19;
+}
+
+.table-theme-preview {
+  display: block;
+  width: 100%;
+  height: 100px;
+  border: 1px solid #536459;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.table-theme-card h4 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.table-theme-card .button {
+  width: 100%;
+}
+
+.table-theme-status {
+  min-height: 1.5em;
+  margin-top: 14px !important;
+  color: #b4d282 !important;
 }
 
 .multiplayer-entry {

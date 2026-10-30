@@ -29,7 +29,7 @@ export const dungeons = [
     mobs: [
       monster('cinderling', 'Cinderling', 26, 5, 2),
       monster('ash-hound', 'Ash Hound', 34, 7, 3),
-      monster('lava-turtle', 'Lava Turtle', 48, 6, 8),
+      monster('lava-turtle', 'Lava Turtle', 38, 6, 8),
       monster('ember-witch', 'Ember Witch', 40, 9, 4),
     ],
     boss: monster('cavern-wyrm', 'Cavern Wyrm', 140, 15, 10),
@@ -40,7 +40,7 @@ export const dungeons = [
     description: 'A scorched cave where fire-born monsters guard a sleeping wyrm.',
     rewardExp: 3200,
     stages: 10,
-    levelRequirement: 15,
+    levelRequirement: 20,
     mobs: [
       monster('woodland-wolf', 'Woodland Wolf', 34, 6, 3),
       monster('briar-golem', 'Briar Golem', 40, 7, 5),

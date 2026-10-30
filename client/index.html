@@ -60,7 +60,7 @@
               <strong>Dungeons</strong><span>Browse mobs, bosses, and monster stats</span>
             </button>
             <button id="multiplayer-button" class="lobby-option" type="button">
-              <strong>Multiplayer</strong><span>Create a room or join a party</span>
+              <strong>Multiplayer</strong><span>Co-op gameplay, challenge bosses with your friends in real-time!</span>
             </button>
             <button id="lab-button" class="lobby-option" type="button">
               <strong>Lab</strong><span>Perma character stats</span>
@@ -158,7 +158,7 @@
           <button class="button button-quiet screen-back" type="button" data-back-to-lobby>Back to game menu</button>
           <p class="eyebrow">Blackjack · four seats</p>
           <h2 id="multiplayer-title">Blackjack Multiplayer</h2>
-          <p class="screen-description">Share a 30-second betting window, then take turns at one table against the shared dealer hand.</p>
+          <p>Create a room or join a party</p>
           <div id="multiplayer-entry" class="multiplayer-entry">
             <button id="multiplayer-create" class="button button-primary" type="button">Create room</button>
             <form id="multiplayer-join-form" class="multiplayer-join-form">
@@ -261,10 +261,12 @@
           <h2 id="store-title">Store</h2>
           <p class="screen-description">Customize how your adventurer appears around the game.</p>
           <p class="store-currency">Available currency <strong id="store-currency">0</strong></p>
+          <p class="store-earning-note">Earn 10 currency when you clear an entire dungeon.</p>
           <div class="store-tabs" role="tablist" aria-label="Store categories">
             <button id="store-tab-title" class="store-tab" type="button" role="tab" aria-selected="true" aria-controls="store-panel-title">Title</button>
             <button id="store-tab-avatar" class="store-tab" type="button" role="tab" aria-selected="false" aria-controls="store-panel-avatar" tabindex="-1">Avatar</button>
             <button id="store-tab-frame" class="store-tab" type="button" role="tab" aria-selected="false" aria-controls="store-panel-frame" tabindex="-1">Frame</button>
+            <button id="store-tab-table" class="store-tab" type="button" role="tab" aria-selected="false" aria-controls="store-panel-table" tabindex="-1">Table</button>
           </div>
           <div class="store-content">
             <section id="store-panel-title" class="store-panel" role="tabpanel" aria-labelledby="store-tab-title">
@@ -278,6 +280,12 @@
             <section id="store-panel-frame" class="store-panel" role="tabpanel" aria-labelledby="store-tab-frame" hidden>
               <h3>Frames</h3>
               <p>No frames are available yet.</p>
+            </section>
+            <section id="store-panel-table" class="store-panel" role="tabpanel" aria-labelledby="store-tab-table" hidden>
+              <h3>Tables</h3>
+              <p>Purchased table colors stay on your account. Apply any owned color to your card scene.</p>
+              <div id="table-theme-list" class="table-theme-list"></div>
+              <p id="table-theme-status" class="table-theme-status" role="status" aria-live="polite"></p>
             </section>
           </div>
         </section>

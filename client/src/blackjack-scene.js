@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { characters, characterSpriteLayout } from './characters.js';
 import { PaperDoll } from './paper-doll.js';
+import { getTableTheme } from '../../shared/table-themes.js';
 
 const suitSymbols = {
   clubs: '♣',
@@ -391,18 +392,18 @@ class BlackjackScene extends Phaser.Scene {
 }
 
 class CardScene extends BlackjackScene {
+  constructor() {
+    super();
+    this.selectedTableTheme = 'default';
+  }
+
   preload() {
     // The cards-only scene does not need the character sprite sheets.
   }
 
   create() {
-    const backdrop = this.add.graphics();
-    backdrop.fillStyle(0x084632, 1);
-    backdrop.fillRoundedRect(24, 20, 812, 450, 20);
-    backdrop.lineStyle(2, 0x4c9470, 0.8);
-    backdrop.strokeRoundedRect(24, 20, 812, 450, 20);
-    backdrop.lineStyle(1, 0x2e7757, 0.8);
-    backdrop.lineBetween(42, 245, 818, 245);
+    this.selectedTableTheme = this.registry.get('selectedTableTheme') ?? 'default';
+    this.drawCardBackdrop();
     this.handLayer = this.add.container(0, 0);
     this.hitCounter = this.add.container(430, 245).setVisible(false);
     this.hitCounter.add(this.add.rectangle(0, 0, 250, 38, 0x173328, 0.96)
@@ -417,6 +418,24 @@ class CardScene extends BlackjackScene {
       this.renderGame(this.pendingGame);
       this.pendingGame = null;
     }
+  }
+
+  setTableTheme(tableTheme) {
+    this.selectedTableTheme = tableTheme;
+    this.registry.set('selectedTableTheme', tableTheme);
+    this.drawCardBackdrop();
+  }
+
+  drawCardBackdrop() {
+    const theme = getTableTheme(this.selectedTableTheme) ?? getTableTheme('default');
+    this.backdrop ??= this.add.graphics();
+    this.backdrop.clear();
+    this.backdrop.fillStyle(Number.parseInt(theme.color, 16), 1);
+    this.backdrop.fillRoundedRect(24, 20, 812, 450, 20);
+    this.backdrop.lineStyle(2, 0x4c9470, 0.8);
+    this.backdrop.strokeRoundedRect(24, 20, 812, 450, 20);
+    this.backdrop.lineStyle(1, 0x2e7757, 0.8);
+    this.backdrop.lineBetween(42, 245, 818, 245);
   }
 
   renderGame(game) {
@@ -665,7 +684,13 @@ class MultiplayerTableScene extends Phaser.Scene {
   }
 }
 
-function createGame(parent, scene, selectedCharacter, dimensions = { width: 860, height: 490 }) {
+function createGame(
+  parent,
+  scene,
+  selectedCharacter,
+  dimensions = { width: 860, height: 490 },
+  selectedTableTheme = 'default',
+) {
   const game = new Phaser.Game({
     type: Phaser.AUTO,
     width: dimensions.width,
@@ -685,13 +710,25 @@ function createGame(parent, scene, selectedCharacter, dimensions = { width: 860,
     },
   });
   game.registry.set('selectedCharacter', selectedCharacter);
+  game.registry.set('selectedTableTheme', selectedTableTheme);
   return game;
 }
 
-export function createBlackjackGame(cardParent, battlefieldParent, selectedCharacter = 'adventurer') {
+export function createBlackjackGame(
+  cardParent,
+  battlefieldParent,
+  selectedCharacter = 'adventurer',
+  selectedTableTheme = 'default',
+) {
   return {
-    cards: createGame(cardParent, CardScene, selectedCharacter),
-    battlefield: createGame(battlefieldParent, BlackjackScene, selectedCharacter),
+    cards: createGame(cardParent, CardScene, selectedCharacter, undefined, selectedTableTheme),
+    battlefield: createGame(
+      battlefieldParent,
+      BlackjackScene,
+      selectedCharacter,
+      undefined,
+      selectedTableTheme,
+    ),
   };
 }
 

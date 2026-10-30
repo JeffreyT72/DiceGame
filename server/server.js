@@ -25,9 +25,11 @@ import {
   getDungeonStageCount,
   meetsDungeonLevelRequirement,
 } from '../shared/dungeon-config.js';
+import { getTableTheme } from '../shared/table-themes.js';
 import { MultiplayerRooms } from './multiplayer.js';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const currencyRewardPerDungeon = 10;
 const databasePath = resolve(projectRoot, process.env.DATABASE_PATH ?? 'data/blackjack.sqlite');
 mkdirSync(dirname(databasePath), { recursive: true });
 
@@ -76,7 +78,15 @@ playerDatabase.exec(`
     character TEXT NOT NULL DEFAULT 'adventurer',
     title TEXT NOT NULL DEFAULT '',
     frame TEXT NOT NULL DEFAULT '',
+    table_theme TEXT NOT NULL DEFAULT 'default',
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS player_table_purchases (
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    table_id TEXT NOT NULL,
+    purchased_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (user_id, table_id)
   );
 
   CREATE TABLE IF NOT EXISTS player_sessions (
@@ -187,6 +197,7 @@ for (const [column, defaultValue] of Object.entries({
   character: "'adventurer'",
   title: "''",
   frame: "''",
+  table_theme: "'default'",
 })) {
   if (!existingPlayerStatColumns.has(column)) {
     playerDatabase.exec(`ALTER TABLE player_stats ADD COLUMN ${column} TEXT NOT NULL DEFAULT ${defaultValue}`);
@@ -521,13 +532,7 @@ function getSessionToken(request) {
 
 function publicAccount(userId) {
   const account = playerDatabase.prepare(`
-    SELECT users.id, users.username, users.email, player_stats.total_exp AS totalExp,
-      player_stats.strength, player_stats.agility, player_stats.constitution, player_stats.luck,
-      player_stats.currency,
-      player_stats.games_played AS gamesPlayed, player_stats.wins,
-      player_stats.losses, player_stats.pushes,
-      player_stats.monsters_defeated AS monstersDefeated,
-      player_stats.character, player_stats.title, player_stats.frame
+    SELECT users.id, users.username, users.email
     FROM users
     JOIN player_stats ON player_stats.user_id = users.id
     WHERE users.id = ?
@@ -536,12 +541,10 @@ function publicAccount(userId) {
     return null;
   }
 
-  const { id, username, email, ...stats } = account;
-  const allocatedPoints = stats.strength + stats.agility + stats.constitution + stats.luck;
-  const level = getLevel(stats.totalExp);
+  const { id, username, email } = account;
   return {
     user: { id, username, email },
-    stats: { ...stats, level, availableStatPoints: Math.max(0, level - 1 - allocatedPoints) },
+    stats: playerStats(id),
   };
 }
 
@@ -728,6 +731,64 @@ app.patch('/api/player/costume', requirePlayer, (request, response) => {
   response.json({ stats: playerStats(request.playerId) });
 });
 
+app.post('/api/player/tables/purchase', requirePlayer, (request, response) => {
+  const { tableId } = request.body ?? {};
+  const theme = getTableTheme(tableId);
+  if (!theme || theme.id === 'default') {
+    return response.status(400).json({ error: 'Choose a valid table theme to purchase.' });
+  }
+
+  const purchase = playerDatabase.transaction(() => {
+    const alreadyOwned = playerDatabase.prepare(`
+      SELECT 1 FROM player_table_purchases WHERE user_id = ? AND table_id = ?
+    `).get(request.playerId, theme.id);
+    if (alreadyOwned) {
+      return { error: 'You already own this table theme.', status: 409 };
+    }
+
+    const debit = playerDatabase.prepare(`
+      UPDATE player_stats
+      SET currency = currency - ?, updated_at = datetime('now')
+      WHERE user_id = ? AND currency >= ?
+    `).run(theme.price, request.playerId, theme.price);
+    if (debit.changes === 0) {
+      return { error: 'You do not have enough currency for this table theme.', status: 409 };
+    }
+
+    playerDatabase.prepare(`
+      INSERT INTO player_table_purchases (user_id, table_id) VALUES (?, ?)
+    `).run(request.playerId, theme.id);
+    return { stats: playerStats(request.playerId) };
+  });
+  const result = purchase();
+  if (result.error) {
+    return response.status(result.status).json({ error: result.error });
+  }
+  response.json(result);
+});
+
+app.patch('/api/player/table-theme', requirePlayer, (request, response) => {
+  const { tableTheme } = request.body ?? {};
+  const theme = getTableTheme(tableTheme);
+  if (!theme) {
+    return response.status(400).json({ error: 'Choose a valid table theme.' });
+  }
+
+  if (theme.id !== 'default') {
+    const owned = playerDatabase.prepare(`
+      SELECT 1 FROM player_table_purchases WHERE user_id = ? AND table_id = ?
+    `).get(request.playerId, theme.id);
+    if (!owned) {
+      return response.status(403).json({ error: 'Purchase this table theme before applying it.' });
+    }
+  }
+
+  playerDatabase.prepare(`
+    UPDATE player_stats SET table_theme = ?, updated_at = datetime('now') WHERE user_id = ?
+  `).run(theme.id, request.playerId);
+  response.json({ stats: playerStats(request.playerId) });
+});
+
 app.get('/api/player/leaderboard', requirePlayer, (_request, response) => {
   const experience = playerDatabase.prepare(`
     SELECT users.username, COALESCE(player_stats.total_exp, 0) AS totalExp
@@ -903,10 +964,15 @@ app.post('/api/dungeons/:id/clear-stage', requirePlayer, (request, response) => 
     playerDatabase.prepare(`
       UPDATE player_stats
       SET total_exp = total_exp + ?,
+        currency = currency + ?,
         monsters_defeated = monsters_defeated + 1,
         updated_at = datetime('now')
       WHERE user_id = ?
-    `).run(expAwarded, request.playerId);
+    `).run(
+      expAwarded,
+      stage === stageCount ? currencyRewardPerDungeon : 0,
+      request.playerId,
+    );
     return expAwarded;
   });
   const expAwarded = clearStage();
@@ -922,12 +988,18 @@ function playerStats(userId) {
   const stats = playerDatabase.prepare(`
     SELECT total_exp AS totalExp, games_played AS gamesPlayed, wins, losses, pushes,
       monsters_defeated AS monstersDefeated, strength, agility, constitution, luck, currency,
-      character, title, frame
+      character, title, frame, table_theme AS tableTheme
     FROM player_stats WHERE user_id = ?
   `).get(userId);
   if (!stats) {
     return null;
   }
+  stats.ownedTableThemes = [
+    'default',
+    ...playerDatabase.prepare(`
+      SELECT table_id AS tableId FROM player_table_purchases WHERE user_id = ?
+    `).all(userId).map(({ tableId }) => tableId),
+  ];
   const allocatedPoints = stats.strength + stats.agility + stats.constitution + stats.luck;
   const level = getLevel(stats.totalExp);
   return { ...stats, level, availableStatPoints: Math.max(0, level - 1 - allocatedPoints) };
