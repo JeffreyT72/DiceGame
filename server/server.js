@@ -679,7 +679,7 @@ app.get('/api/player/stats', requirePlayer, (request, response) => {
   response.json({ stats: playerStats(request.playerId) });
 });
 
-const costumeCharacters = new Set(['adventurer', 'adventurer-male', 'mel', 'body']);
+const costumeCharacters = new Set(['adventurer', 'adventurer-male', 'mel', 'body', 'testing']);
 
 app.patch('/api/player/costume', requirePlayer, (request, response) => {
   const costume = request.body;
