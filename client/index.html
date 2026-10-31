@@ -13,7 +13,7 @@
           <p class="eyebrow">Choose your adventure</p>
           <h1>Blackjack Survivors</h1>
         </div>
-        <p class="rules">Explore unique dungeons, defeat their mobs and bosses.<br />Choose one item after every stage.</p>
+        <p class="rules">Play blackjack against dungeon foes.<br />Choose loot after each stage and see how deep you can go.</p>
       </header>
 
       <section id="auth-panel" class="auth-panel" aria-labelledby="auth-title">
@@ -50,29 +50,48 @@
         </div>
 
         <section id="lobby-screen" class="screen-panel" aria-labelledby="lobby-title">
-          <p class="eyebrow">Adventurer's hub</p>
-          <h2 id="lobby-title">Game menu</h2>
-          <p class="screen-description">Choose where you want to go.</p>
-          <p class="lobby-level">Character level <strong id="lobby-level">Level 1</strong></p>
-          <p class="lobby-currency">Currency <strong id="lobby-currency">0</strong></p>
+          <div class="lobby-heading">
+            <div>
+              <p class="eyebrow">Your next hand awaits</p>
+              <h2 id="lobby-title">The table is yours.</h2>
+              <p class="screen-description">Play your cards. Outlast the monsters. Become a legend.</p>
+            </div>
+            <div class="lobby-status" aria-label="Adventurer progress">
+              <p class="lobby-level"><span>Adventurer rank</span><strong id="lobby-level">Level 1</strong></p>
+              <p class="lobby-currency"><span>Gold pouch</span><strong id="lobby-currency">0</strong></p>
+            </div>
+          </div>
+          <section class="lobby-hero" aria-label="Start a dungeon run">
+            <div class="lobby-hero-copy">
+              <p class="lobby-hero-kicker">Blackjack meets the dungeon</p>
+              <h3>One hand from glory.</h3>
+              <p>Push your luck against fearsome foes, claim powerful upgrades, and see how deep your run can go.</p>
+              <button id="start-game-button" class="lobby-cta" type="button">
+                Choose your dungeon <span aria-hidden="true">→</span>
+              </button>
+            </div>
+            <div class="lobby-hero-art" aria-hidden="true">
+              <div class="lobby-card lobby-card-back"><span>♣</span></div>
+              <div class="lobby-card lobby-card-ten"><span class="lobby-card-rank">10</span><span class="lobby-card-suit">♥</span></div>
+              <div class="lobby-card lobby-card-ace"><span class="lobby-card-rank">A</span><span class="lobby-card-suit">♠</span></div>
+              <div class="lobby-chip">21<small>LUCK</small></div>
+            </div>
+          </section>
           <nav class="lobby-options" aria-label="Game menu">
-            <button id="start-game-button" class="lobby-option lobby-option-primary" type="button">
-              <strong>Dungeons</strong><span>Browse mobs, bosses, and monster stats</span>
-            </button>
             <button id="multiplayer-button" class="lobby-option" type="button">
-              <strong>Multiplayer</strong><span>Co-op gameplay, challenge bosses with your friends in real-time!</span>
+              <span class="lobby-option-kicker">Play together</span><strong>Multiplayer</strong><span>Team up and take on bosses in real time.</span>
             </button>
             <button id="lab-button" class="lobby-option" type="button">
-              <strong>Lab</strong><span>Perma character stats</span>
+              <span class="lobby-option-kicker">Permanent upgrades</span><strong>Character lab</strong><span>Spend your hard-earned stat points.</span>
             </button>
             <button id="store-button" class="lobby-option" type="button">
-              <strong>Store</strong><span>Browse titles, avatars, and frames</span>
+              <span class="lobby-option-kicker">Spend your gold</span><strong>Adventurer store</strong><span>Find titles, avatars, and frames.</span>
             </button>
             <button id="leaderboard-button" class="lobby-option" type="button">
-              <strong>Leaderboard</strong><span>Top adventurers by EXP</span>
+              <span class="lobby-option-kicker">Hall of legends</span><strong>Leaderboard</strong><span>See who has earned the most EXP.</span>
             </button>
             <button id="settings-button" class="lobby-option" type="button">
-              <strong>Settings</strong><span>Coming soon</span>
+              <span class="lobby-option-kicker">Make it yours</span><strong>Settings</strong><span>Choose your character and music.</span>
             </button>
           </nav>
         </section>
