@@ -1,4 +1,4 @@
-import { getItem } from '../items.js';
+import { getItem } from '../../../shared/items.js';
 
 export function createLootRenderer({ getItems, getChoices, isResolving, onChooseItem }) {
   const activeItems = document.querySelector('#active-items');

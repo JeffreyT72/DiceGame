@@ -8,7 +8,7 @@ import {
   resolveHandOutcome,
   toPublicGame,
 } from './blackjack.js';
-import { getItemEffects, chooseItemOptions, getItem } from '../client/src/items.js';
+import { getItemEffects, chooseItemOptions, getItem } from '../shared/items.js';
 import {
   dungeons_multiplayer,
   getDungeonMonster,

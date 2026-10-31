@@ -1,4 +1,4 @@
-import { characters, characterSpriteLayout } from '../characters.js';
+import { characters, characterSpriteLayout } from '../game/characters.js';
 
 const equipmentSlots = [
   { id: 'character', name: 'Base character' },

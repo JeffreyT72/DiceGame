@@ -1,6 +1,6 @@
 import { connectMultiplayer } from '../services/multiplayer.js';
 import { request } from '../services/api.js';
-import { createBlackjackMultiplayerGame } from '../blackjack-scene.js';
+import { createBlackjackMultiplayerGame } from '../game/blackjack-scene.js';
 
 const savedRoomKey = 'blackjack-multiplayer-room';
 

@@ -32,7 +32,7 @@ The server serves the built frontend and API from <http://localhost:3000> in loc
 - Every mob and boss defines HP, attack power, and defense. HP sets monster health, attack power adds to its blackjack attack, and defense reduces damage from player attacks (to a minimum of 1).
 - Combat uses blackjack hands. On the initial two-card turn, the player can double down to draw exactly one card and end their turn. If the hand wins, the attack deals double damage; if it loses, the player takes double damage. Each hit press in a hand increases the player's attack multiplier: the first hit is 1.2x, the second is 1.4x, and each additional hit adds 0.2x. Winning with matching ranks in the initial two cards multiplies attack damage by 1.5; winning with exactly five cards without busting doubles attack damage on top of hit multipliers. If the player does not hit, monster damage is reduced by 50%. Luck can increase a winning attack to 1.5x on a critical hit. Winning deals the player's hand score plus STR and item attack, reduced by monster defense (minimum 1 damage). Losing deals the dealer's score plus monster attack power to the player, and AGI provides a chance to dodge.
 - Before each hand, optionally wager 10%, 25%, or 50% of current HP, or skip the wager. A wager stake is deducted immediately and is not refunded; a winning attack gains bonus damage equal to twice the wager percentage (20%, 50%, or 100%). Skipping costs no HP and adds no damage bonus.
-- After each cleared stage except the final boss, choose one of three distinct items drawn by configurable chance from `client/src/items.js`. Item effects stack for the current dungeon run only and are removed when the run ends. The six starting items add attack, damage reduction, maximum HP, dodge chance, critical chance, or healing on a successful hit.
+- After each cleared stage except the final boss, choose one of three distinct items drawn by configurable chance from `shared/items.js`. Item effects stack for the current dungeon run only and are removed when the run ends.
 - A defeated character loses the run. Clearing a dungeon awards the EXP reward configured for that dungeon.
 - Character progression and allocated stats are saved to the player's account. Each level gained grants one stat point to allocate to STR (+1 damage), AGI (+5% dodge chance), CON (+20 maximum HP), or Luck (+3% critical chance).
 
@@ -75,9 +75,10 @@ Set `DATABASE_PATH` or `PLAYER_DATABASE_PATH` to use other SQLite files, or `POR
 client/
   src/
     main.js             App setup and dungeon orchestration
-    game/combat.js      Blackjack combat resolution
+    game/                Phaser scenes, character data, paper-doll, and combat
     services/api.js     Shared API requests
     services/multiplayer.js WebSocket client connection
+    styles/main.css     Application styles
     ui/auth.js          Sign-in, sign-up, and session controls
     ui/character-lab.js Character progression and stat allocation
     ui/dungeon-catalog.js Dungeon and monster catalog page
@@ -85,10 +86,8 @@ client/
     ui/loot.js          Run inventory and item-choice rendering
     ui/multiplayer.js   Multiplayer room controls and party display
     ui/screens.js       Lobby, dungeon catalog, Lab, leaderboard, and screen navigation
-    blackjack-scene.js  Phaser dungeon battlefield and multiplayer table
 server/                 Express API, blackjack rules, accounts, and WebSocket rooms
-shared/dungeon-multiplayer-config.js Multiplayer dungeon encounters
-shared/dungeon-config.js Dungeon definitions and mob/boss attributes
+shared/                 Rules and configuration shared by the client and server
 data/                   SQLite databases (created at runtime)
 ```
 

@@ -1,4 +1,4 @@
-import { getItemEffects } from '../items.js';
+import { getItemEffects } from '../../../shared/items.js';
 import { getCombatHandModifiers } from '../../../shared/combat-rules.js';
 
 const winningOutcomes = ['player_blackjack', 'player_win', 'dealer_bust'];

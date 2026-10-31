@@ -1,8 +1,8 @@
-import adventurerSpriteSheet from './assets/characters/main_v2.png';
-import maleAdventurerSpriteSheet from './assets/characters/main_v2_male.png';
-import melSpriteSheet from './assets/characters/mel_v1.png';
-import bodySpriteSheet from './assets/characters/hero/body-game.png';
-import testingSpriteSheet from './assets/characters/hero/testing.png';
+import adventurerSpriteSheet from '../assets/characters/main_v2.png';
+import maleAdventurerSpriteSheet from '../assets/characters/main_v2_male.png';
+import melSpriteSheet from '../assets/characters/mel_v1.png';
+import bodySpriteSheet from '../assets/characters/hero/body-game.png';
+import testingSpriteSheet from '../assets/characters/hero/testing.png';
 
 export const characterSpriteLayout = {
   idleFrames: [15, 125, 235, 345],

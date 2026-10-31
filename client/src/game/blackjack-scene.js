@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { characters, characterSpriteLayout } from './characters.js';
 import { PaperDoll } from './paper-doll.js';
-import { getTableTheme } from '../../shared/table-themes.js';
+import { getTableTheme } from '../../../shared/table-themes.js';
 
 const suitSymbols = {
   clubs: '♣',

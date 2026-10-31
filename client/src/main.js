@@ -1,7 +1,7 @@
-import './style.css';
+import './styles/main.css';
 import backgroundMusicUrl from './assets/music/lofi-hip-hop1.mp3';
-import { createBlackjackGame } from './blackjack-scene.js';
-import { characters } from './characters.js';
+import { createBlackjackGame } from './game/blackjack-scene.js';
+import { characters } from './game/characters.js';
 import deepTealPreview from './assets/tables/static/062633.png';
 import berryPreview from './assets/tables/static/630632.png';
 import { request } from './services/api.js';
@@ -14,7 +14,7 @@ import { createLootRenderer } from './ui/loot.js';
 import { createMultiplayerController } from './ui/multiplayer.js';
 import { createPaperDollCustomizer } from './ui/paper-doll-customizer.js';
 import { createScreenController } from './ui/screens.js';
-import { chooseItemOptions, getItem, getItemEffects } from './items.js';
+import { chooseItemOptions, getItem, getItemEffects } from '../../shared/items.js';
 import {
   dungeons,
   getDungeonMonster,
