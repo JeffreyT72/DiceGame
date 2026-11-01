@@ -212,10 +212,22 @@ export function createMultiplayerController({ getFpsLimit, onStatsUpdated }) {
       const remainingSeconds = Math.max(0, Math.ceil((roomState.turnEndsAt - Date.now()) / 1000));
       turnTimer.textContent = `Your turn · ${remainingSeconds} second${remainingSeconds === 1 ? '' : 's'} remaining`;
       const doubleDown = turnActions.querySelector('[data-multiplayer-action="double_down"]');
+      const split = turnActions.querySelector('[data-multiplayer-action="split"]');
       for (const button of turnActions.querySelectorAll('[data-multiplayer-action]')) {
         button.disabled = actionPending;
       }
-      doubleDown.disabled = actionPending || me.hand.playerHand.length !== 2 || me.hand.doubledDown;
+      doubleDown.disabled = actionPending || me.hand.playerHand.length !== 2
+        || me.hand.doubledDown || Boolean(me.hand.playerHands);
+      const firstCard = me.hand.playerHand[0];
+      const secondCard = me.hand.playerHand[1];
+      const cardValue = ({ rank }) => rank === 'A' ? 11 : ['J', 'Q', 'K'].includes(rank) ? 10 : Number(rank);
+      split.disabled = actionPending
+        || Boolean(me.hand.playerHands)
+        || !firstCard
+        || !secondCard
+        || cardValue(firstCard) !== cardValue(secondCard)
+        || !me.betHp
+        || me.betHp >= me.playerHp;
     }
     startButton.hidden = !(roomState.phase === 'lobby' && roomState.hostId === roomState.viewerId);
     startButton.disabled = roomState.players.length < 2;

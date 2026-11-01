@@ -148,6 +148,7 @@ let renderProgression;
 const hitButton = document.querySelector('#hit-button');
 const standButton = document.querySelector('#stand-button');
 const doubleDownButton = document.querySelector('#double-down-button');
+const splitButton = document.querySelector('#split-button');
 const newGameButton = document.querySelector('#new-game-button');
 const wagerPanel = document.querySelector('#wager-panel');
 const wagerButtons = document.querySelectorAll('[data-wager]');
@@ -422,9 +423,23 @@ function renderControls() {
   const awaitingWager = active && !handInProgress && !startingHand;
   const stageComplete = runState?.phase === 'loot';
   const canDoubleDown = currentGame?.playerHand.length === 2 && !currentGame?.doubledDown;
+  const firstCard = currentGame?.playerHand[0];
+  const secondCard = currentGame?.playerHand[1];
+  const cardValue = ({ rank }) => rank === 'A' ? 11 : ['J', 'Q', 'K'].includes(rank) ? 10 : Number(rank);
+  const splitStake = runState?.activeWager?.hpStake ?? 0;
+  const canSplit = Boolean(
+    firstCard
+    && secondCard
+    && !currentGame?.playerHands
+    && cardValue(firstCard) === cardValue(secondCard)
+    && splitStake > 0
+    && splitStake < (runState?.playerHp ?? 0),
+  );
   hitButton.disabled = startingHand || !active || !handInProgress;
   standButton.disabled = startingHand || !active || !handInProgress;
-  doubleDownButton.disabled = startingHand || !active || !handInProgress || !canDoubleDown;
+  doubleDownButton.disabled = startingHand || !active || !handInProgress
+    || !canDoubleDown || Boolean(currentGame?.playerHands);
+  splitButton.disabled = startingHand || !active || !handInProgress || !canSplit;
   wagerPanel.hidden = !awaitingWager;
   for (const button of wagerButtons) {
     const percentage = Number(button.dataset.wager);
@@ -715,28 +730,42 @@ async function takeAction(action) {
     return;
   }
 
+  const actionRunState = runState;
+  const gameId = currentGame.id;
   hitButton.disabled = true;
   standButton.disabled = true;
   doubleDownButton.disabled = true;
+  splitButton.disabled = true;
   newGameButton.disabled = true;
+  const splitStake = action === 'split' ? runState.activeWager?.hpStake ?? 0 : 0;
+  if (splitStake) {
+    actionRunState.playerHp -= splitStake;
+    if (runState === actionRunState) renderBattlefield();
+  }
   status.textContent = action === 'hit'
     ? 'Dealing a card…'
     : action === 'double_down'
       ? 'Doubling down and dealing one card…'
-      : 'The monster takes its turn…';
+      : action === 'split'
+        ? 'Splitting your hand and placing a second wager…'
+        : 'The monster takes its turn…';
 
   try {
     await new Promise((resolve) => setTimeout(resolve, cardActionDelayMs));
-    const { game: updatedGame } = await request(`/api/games/${currentGame.id}/actions`, {
+    const { game: updatedGame } = await request(`/api/games/${gameId}/actions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action }),
     });
     render(updatedGame);
   } catch (error) {
+    actionRunState.playerHp += splitStake;
     console.error(error);
     status.textContent = `Could not update the hand: ${error.message}`;
-    renderControls();
+    if (runState === actionRunState) {
+      renderBattlefield();
+      renderControls();
+    }
   }
 }
 
@@ -770,6 +799,7 @@ for (const button of wagerButtons) {
 hitButton.addEventListener('click', () => takeAction('hit'));
 standButton.addEventListener('click', () => takeAction('stand'));
 doubleDownButton.addEventListener('click', () => takeAction('double_down'));
+splitButton.addEventListener('click', () => takeAction('split'));
 newGameButton.addEventListener('click', nextHand);
 const lootRenderer = createLootRenderer({
   getItems: () => runState?.items,

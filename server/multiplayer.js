@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { getCombatHandModifiers } from '../shared/combat-rules.js';
 import {
   applyAction,
+  canSplitHand,
   createGameState,
   handValue,
   resolveDealerHand,
@@ -213,6 +214,7 @@ export class MultiplayerRooms {
       hand: null,
       betPercentage: 0,
       betHp: 0,
+      originalBetHp: 0,
       betPlaced: false,
       lastDamage: null,
     });
@@ -251,6 +253,7 @@ export class MultiplayerRooms {
     for (const player of room.players.values()) {
       player.betPercentage = 0;
       player.betHp = 0;
+      player.originalBetHp = 0;
       player.betPlaced = !player.alive;
       player.hand = null;
       player.lastDamage = null;
@@ -289,6 +292,7 @@ export class MultiplayerRooms {
     }
     player.betPercentage = percentage;
     player.betHp = stake;
+    player.originalBetHp = stake;
     player.playerHp -= stake;
     player.betPlaced = true;
     if ([...room.players.values()].every((member) => !member.alive || member.betPlaced)) {
@@ -346,10 +350,28 @@ export class MultiplayerRooms {
       return;
     }
     const player = room.players.get(connection.player.id);
+    if (action === 'split') {
+      if (!canSplitHand(player.hand.state)) {
+        this.sendError(connection.socket, 'You can only split an equal-value pair on your first turn.');
+        return;
+      }
+      if (!player.originalBetHp) {
+        this.sendError(connection.socket, 'Place a wager before splitting.');
+        return;
+      }
+      if (player.originalBetHp >= player.playerHp) {
+        this.sendError(connection.socket, 'You need at least 1 HP remaining after the second wager.');
+        return;
+      }
+    }
     const result = applyAction(player.hand.state, action, { deferDealerResolution: true });
     if (result.error) {
       this.sendError(connection.socket, result.error);
       return;
+    }
+    if (action === 'split') {
+      player.playerHp -= player.originalBetHp;
+      player.betHp += player.originalBetHp;
     }
     player.hand.updatedAt = new Date(this.now()).toISOString();
     if (result.state.status === 'complete') {
@@ -363,7 +385,7 @@ export class MultiplayerRooms {
   finishTurn(room, player, timedOut = false) {
     if (room.currentPlayerId !== player.id || room.phase !== 'playing') return;
     this.cancelTurnTimer(room);
-    if (timedOut && player.hand.state.status === 'playing') {
+    while (timedOut && player.hand.state.status === 'playing') {
       const result = applyAction(player.hand.state, 'stand', { deferDealerResolution: true });
       if (result.error) {
         this.sendError(player.socket, `Timed-out turn could not be stood: ${result.error}`);
@@ -418,76 +440,84 @@ export class MultiplayerRooms {
   resolveHand(room, player) {
     const state = player.hand.state;
     const monster = getDungeonMonster(room.dungeon, room.stage);
-    const effects = getItemEffects(player.items);
-    player.lastDamage = null;
-    if (winningOutcomes.has(state.outcome)) {
-      const handModifiers = getCombatHandModifiers(state.playerHand, state.hitCount);
-      const attackDamage = Math.max(
-        0,
-        handValue(state.playerHand) + player.stats.strength + effects.attack - monster.defense,
-      );
-      const baseDamage = Math.max(
-        1,
-        attackDamage,
-      ) * (state.doubledDown ? 2 : 1);
-      const hitMultiplier = state.hitCount > 0 ? state.hitMultiplier + effects.hitMultiplier : 1;
-      const pairMultiplier = handModifiers.matchingPair ? 1.5 : 1;
-      const fiveCardMultiplier = handModifiers.fiveCardHand ? 2 : 1;
-      const criticalChance = Math.min(100, player.stats.luck * 3 + effects.criticalChance * 100);
-      const critical = Math.random() * 100 < criticalChance;
-      const damage = Math.min(room.monsterHp, Math.floor(
-        baseDamage * hitMultiplier * pairMultiplier * fiveCardMultiplier
-          * (1 + player.betPercentage * 2) * (critical ? 1.5 : 1),
-      ));
-      room.monsterHp = Math.max(0, room.monsterHp - damage);
-      const healing = Math.min(
-        maximumHealth(player) - player.playerHp,
-        Math.ceil((maximumHealth(player) * effects.healOnHitHpBased
-          + damage * effects.healOnHitDamageBased) * (1 + effects.healing)),
-      );
-      player.playerHp += healing;
-      player.lastDamage = {
-        dealt: damage,
-        healed: healing,
-        critical,
-        wagerHp: player.betHp,
-        betPercentage: player.betPercentage,
-        hitCount: state.hitCount,
-        hitMultiplier,
-        doubledDown: Boolean(state.doubledDown),
-        itemAttack: effects.attack,
-        matchingPair: handModifiers.matchingPair,
-        fiveCardHand: handModifiers.fiveCardHand,
-      };
-    } else if (losingOutcomes.has(state.outcome)) {
-      const handModifiers = getCombatHandModifiers(state.playerHand, state.hitCount);
-      const dealerScore = handValue(state.dealerHand);
-      let damage = Math.floor(
-        (dealerScore + monster.attackPower) * (1 - effects.damageReduction)
-          * (handModifiers.noHit ? 0.5 : 1),
-      )
-        * (state.doubledDown ? 2 : 1);
-      const dodgeChance = Math.min(100, player.stats.agility * 5 + effects.dodgeChance * 100);
-      if (Math.random() * 100 < dodgeChance) {
-        damage = 0;
+    const hands = state.hands?.map((hand) => ({
+      ...hand,
+      score: handValue(hand.playerHand),
+    })) ?? [{
+      ...state,
+      score: handValue(state.playerHand),
+    }];
+    const results = [];
+    for (const hand of hands) {
+      const effects = getItemEffects(player.items);
+      if (winningOutcomes.has(hand.outcome)) {
+        const handModifiers = getCombatHandModifiers(hand.playerHand, hand.hitCount);
+        const attackDamage = Math.max(
+          0,
+          hand.score + player.stats.strength + effects.attack - monster.defense,
+        );
+        const baseDamage = Math.max(1, attackDamage) * (hand.doubledDown ? 2 : 1);
+        const hitMultiplier = hand.hitCount > 0 ? hand.hitMultiplier + effects.hitMultiplier : 1;
+        const pairMultiplier = handModifiers.matchingPair ? 1.5 : 1;
+        const fiveCardMultiplier = handModifiers.fiveCardHand ? 2 : 1;
+        const criticalChance = Math.min(100, player.stats.luck * 3 + effects.criticalChance * 100);
+        const critical = Math.random() * 100 < criticalChance;
+        const damage = Math.min(room.monsterHp, Math.floor(
+          baseDamage * hitMultiplier * pairMultiplier * fiveCardMultiplier
+            * (1 + player.betPercentage * 2) * (critical ? 1.5 : 1),
+        ));
+        room.monsterHp = Math.max(0, room.monsterHp - damage);
+        const healing = Math.min(
+          maximumHealth(player) - player.playerHp,
+          Math.ceil((maximumHealth(player) * effects.healOnHitHpBased
+            + damage * effects.healOnHitDamageBased) * (1 + effects.healing)),
+        );
+        player.playerHp += healing;
+        results.push({
+          dealt: damage,
+          healed: healing,
+          critical,
+          wagerHp: player.betHp,
+          betPercentage: player.betPercentage,
+          hitCount: hand.hitCount,
+          hitMultiplier,
+          doubledDown: Boolean(hand.doubledDown),
+          itemAttack: effects.attack,
+          matchingPair: handModifiers.matchingPair,
+          fiveCardHand: handModifiers.fiveCardHand,
+        });
+      } else if (losingOutcomes.has(hand.outcome)) {
+        const handModifiers = getCombatHandModifiers(hand.playerHand, hand.hitCount);
+        let damage = Math.floor(
+          (handValue(state.dealerHand) + monster.attackPower) * (1 - effects.damageReduction)
+            * (handModifiers.noHit ? 0.5 : 1),
+        ) * (hand.doubledDown ? 2 : 1);
+        const dodgeChance = Math.min(100, player.stats.agility * 5 + effects.dodgeChance * 100);
+        if (Math.random() * 100 < dodgeChance) {
+          damage = 0;
+        } else {
+          player.playerHp = Math.max(0, player.playerHp - damage);
+          const reflected = Math.min(room.monsterHp, Math.floor(damage * effects.damageReflection));
+          room.monsterHp -= reflected;
+        }
+        results.push({
+          taken: damage,
+          dodged: damage === 0,
+          wagerHp: player.betHp,
+          betPercentage: player.betPercentage,
+          noHit: handModifiers.noHit,
+          doubledDown: Boolean(hand.doubledDown),
+          itemDamageReduction: effects.damageReduction,
+        });
       } else {
-        player.playerHp = Math.max(0, player.playerHp - damage);
-        const reflected = Math.min(room.monsterHp, Math.floor(damage * effects.damageReflection));
-        room.monsterHp -= reflected;
+        results.push({ push: true });
       }
-      player.lastDamage = {
-        taken: damage,
-        dodged: damage === 0,
-        wagerHp: player.betHp,
-        betPercentage: player.betPercentage,
-        noHit: handModifiers.noHit,
-        doubledDown: Boolean(state.doubledDown),
-        itemDamageReduction: effects.damageReduction,
-      };
-      if (player.playerHp === 0) {
-        player.alive = false;
-      }
-    } else {
+    }
+    player.lastDamage = results.length === 1
+      ? results[0]
+      : { ...results.at(-1), handResults: results };
+    if (player.playerHp === 0) player.alive = false;
+    if (hands.some(({ outcome }) => outcome === 'push')) {
       room.lastMessage = `${player.username}'s hand was a push.`;
     }
   }

@@ -146,6 +146,62 @@ test('shared betting deducts each stake and applies its bonus only after the sha
   assert.equal(revealed.players[1].lastDamage.wagerHp, 50);
 });
 
+test('splitting a multiplayer hand consumes a matching second wager', () => {
+  const { rooms, sockets } = createRoomFixture({ strength: 0 });
+
+  sockets[0].receive({ type: 'start_game' });
+  sockets[0].receive({ type: 'bet', percentage: 0.1 });
+  sockets[1].receive({ type: 'bet', percentage: 0 });
+  const room = rooms.rooms.get('ABC234');
+  const player = room.players.get('player-1');
+  const state = player.hand.state;
+  room.dealerDeck = [
+    { rank: '8', suit: 'clubs' },
+    { rank: '9', suit: 'clubs' },
+  ];
+  state.deck = room.dealerDeck;
+  state.dealerDeck = room.dealerDeck;
+  state.playerHand = [
+    { rank: '10', suit: 'hearts' },
+    { rank: '10', suit: 'spades' },
+  ];
+
+  sockets[0].receive({ type: 'action', action: 'split' });
+  assert.equal(player.playerHp, 160);
+  assert.equal(player.betHp, 40);
+  assert.equal(state.hands.length, 2);
+  assert.equal(latestRoomState(sockets[0]).currentPlayerId, 'player-1');
+
+  sockets[0].receive({ type: 'action', action: 'stand' });
+  assert.equal(state.activeHandIndex, 1);
+  sockets[0].receive({ type: 'action', action: 'stand' });
+  sockets[1].receive({ type: 'action', action: 'stand' });
+  assert.deepEqual(state.hands.map(({ outcome }) => outcome), ['player_win', 'push']);
+  assert.equal(player.lastDamage.handResults.length, 2);
+});
+
+test('multiplayer split is rejected without a second wager', () => {
+  const { rooms, sockets } = createRoomFixture();
+
+  startRound(sockets);
+  const room = rooms.rooms.get('ABC234');
+  const state = room.players.get('player-1').hand.state;
+  state.playerHand = [
+    { rank: '8', suit: 'hearts' },
+    { rank: '8', suit: 'spades' },
+  ];
+  state.deck = [
+    { rank: '3', suit: 'clubs' },
+    { rank: '4', suit: 'clubs' },
+  ];
+  sockets[0].receive({ type: 'action', action: 'split' });
+
+  assert.equal(state.hands, undefined);
+  assert.ok(sockets[0].messages.some(({ type, message }) => (
+    type === 'error' && message === 'Place a wager before splitting.'
+  )));
+});
+
 test('betting deadline starts the deal with an automatic no-bet for undecided players', () => {
   const { sockets, timers } = createRoomFixture();
 

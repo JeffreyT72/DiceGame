@@ -180,13 +180,34 @@ class BlackjackScene extends Phaser.Scene {
     const sameGame = game.id === this.renderedGameId;
     const dealerDrawStart = sameGame ? this.renderedCardCounts.dealer : 0;
     const playerDrawStart = sameGame ? this.renderedCardCounts.player : 0;
+    const splitDrawStarts = sameGame ? this.renderedCardCounts.splitPlayers ?? [] : [];
     this.renderedGameId = game.id;
     this.renderedCardCounts = {
       dealer: game.dealerHand.length,
       player: game.playerHand.length,
+      splitPlayers: game.playerHands?.map(({ cards }) => cards.length) ?? [],
     };
     this.addHand('Dealer', game.dealerHand, game.dealerScore, 150, 98, dealerDrawStart);
-    this.addHand('You', game.playerHand, game.playerScore, 340, 286, playerDrawStart);
+    if (game.playerHands?.length) {
+      game.playerHands.forEach((hand, index) => {
+        const active = game.status === 'playing' && index === game.activeHandIndex;
+        const result = hand.status === 'complete' && hand.outcome
+          ? ` · ${hand.outcome.replaceAll('_', ' ')}`
+          : '';
+        this.addHand(
+          `Hand ${index + 1}${active ? ' · PLAYING' : result}`,
+          hand.cards,
+          hand.score,
+          340,
+          286,
+          splitDrawStarts[index] ?? 0,
+          index === 0 ? 240 : 620,
+          390,
+        );
+      });
+    } else {
+      this.addHand('You', game.playerHand, game.playerScore, 340, 286, playerDrawStart);
+    }
   }
 
   renderBattlefield(combatState = this.combatState) {
@@ -325,19 +346,19 @@ class BlackjackScene extends Phaser.Scene {
     }
   }
 
-  addHand(label, cards, score, cardY, labelY, drawStartIndex) {
+  addHand(label, cards, score, cardY, labelY, drawStartIndex, centerX = 430, maxWidth = 790) {
     const scoreText = score === null ? '' : `  ·  ${score}`;
-    this.handLayer.add(this.add.text(34, labelY, `${label}${scoreText}`, {
+    this.handLayer.add(this.add.text(centerX - maxWidth / 2, labelY, `${label}${scoreText}`, {
       color: '#e9f5ed',
       fontFamily: 'Arial, sans-serif',
       fontSize: '18px',
       fontStyle: 'bold',
     }));
 
-    const cardWidth = Math.min(78, (790 - 9 * Math.max(0, cards.length - 1)) / cards.length);
+    const cardWidth = Math.min(78, (maxWidth - 9 * Math.max(0, cards.length - 1)) / cards.length);
     const cardHeight = cardWidth * 1.42;
     const gap = 9;
-    const startX = 430 - ((cards.length - 1) * (cardWidth + gap)) / 2;
+    const startX = centerX - ((cards.length - 1) * (cardWidth + gap)) / 2;
 
     cards.forEach((card, index) => {
       const x = startX + index * (cardWidth + gap);
@@ -598,19 +619,35 @@ class MultiplayerTableScene extends Phaser.Scene {
         }).setOrigin(0.5));
       }
       if (player.hand?.status === 'complete') {
-        const resultLabel = room.dealerRevealed
-          ? player.hand.outcome?.replaceAll('_', ' ') ?? ''
-          : '';
-        this.tableLayer.add(this.add.text(x, y + 47, resultLabel, {
-          color: '#d8e8cf',
-          fontFamily: 'Arial, sans-serif',
-          fontSize: '10px',
-          fontStyle: 'bold',
-        }).setOrigin(0.5));
+        if (room.dealerRevealed && player.hand.playerHands?.length) {
+          player.hand.playerHands.forEach((hand, handIndex) => {
+            this.tableLayer.add(this.add.text(x + (handIndex === 0 ? -47 : 47), y + 47, hand.outcome?.replaceAll('_', ' ') ?? '', {
+              color: '#d8e8cf',
+              fontFamily: 'Arial, sans-serif',
+              fontSize: '8px',
+              fontStyle: 'bold',
+            }).setOrigin(0.5));
+          });
+        } else {
+          const resultLabel = room.dealerRevealed
+            ? player.hand.outcome?.replaceAll('_', ' ') ?? ''
+            : '';
+          this.tableLayer.add(this.add.text(x, y + 47, resultLabel, {
+            color: '#d8e8cf',
+            fontFamily: 'Arial, sans-serif',
+            fontSize: '10px',
+            fontStyle: 'bold',
+          }).setOrigin(0.5));
+        }
       }
       if (room.phase === 'battle' && player.lastDamage) {
         const { lastDamage } = player;
         const bonusLabels = [];
+        if (lastDamage.handResults?.length) {
+          bonusLabels.push(...lastDamage.handResults.map((hand, handIndex) => (
+            `H${handIndex + 1} ${hand.dealt ? `-${hand.dealt}` : `-${hand.taken ?? 0}`} HP`
+          )));
+        }
         if (lastDamage.hitCount > 0) {
           bonusLabels.push(`HITS x${lastDamage.hitMultiplier.toFixed(1)}`);
         }
@@ -641,13 +678,19 @@ class MultiplayerTableScene extends Phaser.Scene {
           align: 'center',
         }).setOrigin(0.5));
       }
-      this.drawCards(playerHand, x, y + (room.phase === 'betting' ? 22 : 12), 43, 61);
+      const cardY = y + (room.phase === 'betting' ? 22 : 12);
+      if (player.hand?.playerHands?.length) {
+        this.drawCards(player.hand.playerHands[0].cards, x - 47, cardY, 32, 45, 80);
+        this.drawCards(player.hand.playerHands[1].cards, x + 47, cardY, 32, 45, 80);
+      } else {
+        this.drawCards(playerHand, x, cardY, 43, 61);
+      }
     });
   }
 
-  drawCards(cards, centerX, centerY, cardWidth, cardHeight) {
+  drawCards(cards, centerX, centerY, cardWidth, cardHeight, maxWidth = 176) {
     const gap = 4;
-    const width = Math.min(cardWidth, 176 / Math.max(1, cards.length) - gap);
+    const width = Math.min(cardWidth, maxWidth / Math.max(1, cards.length) - gap);
     const height = width * cardHeight / cardWidth;
     const cardGap = Math.min(gap, width * 0.1);
     const startX = centerX - ((cards.length - 1) * (width + cardGap)) / 2;

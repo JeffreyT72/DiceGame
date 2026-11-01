@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   applyAction,
+  canSplitHand,
   createGameState,
   resolveDealerHand,
   resolveHandOutcome,
@@ -86,6 +87,93 @@ test('double down is rejected after the player has hit', () => {
   assert.equal(result.status, 409);
   assert.equal(state.playerHand.length, 3);
   assert.equal(state.doubledDown, undefined);
+});
+
+test('splitting deals one card to each hand and plays them independently', () => {
+  const state = {
+    ...createTestState(),
+    deck: [
+      { rank: '3', suit: 'clubs' },
+      { rank: '9', suit: 'clubs' },
+      { rank: '5', suit: 'clubs' },
+    ],
+    playerHand: [
+      { rank: '10', suit: 'hearts' },
+      { rank: 'K', suit: 'spades' },
+    ],
+  };
+
+  assert.equal(canSplitHand(state), true);
+  assert.equal(applyAction(state, 'split', { deferDealerResolution: true }).state.status, 'playing');
+  assert.deepEqual(state.hands.map(({ playerHand }) => playerHand.map(({ rank }) => rank)), [
+    ['10', '5'],
+    ['K', '9'],
+  ]);
+  assert.equal(state.activeHandIndex, 0);
+  assert.equal(applyAction(state, 'double_down').status, 409);
+  assert.equal(applyAction(state, 'split').status, 409);
+
+  applyAction(state, 'hit', { deferDealerResolution: true });
+  assert.equal(state.status, 'playing');
+  assert.equal(state.hands[0].hitCount, 1);
+  assert.equal(state.hands[1].hitCount, 0);
+  assert.equal(state.activeHandIndex, 0);
+  applyAction(state, 'stand', { deferDealerResolution: true });
+  assert.equal(state.activeHandIndex, 1);
+  applyAction(state, 'stand', { deferDealerResolution: true });
+  assert.equal(state.status, 'complete');
+  resolveDealerHand(state);
+  resolveHandOutcome(state);
+
+  assert.deepEqual(state.hands.map(({ outcome }) => outcome), ['push', 'player_win']);
+  assert.equal(state.outcome, 'player_win');
+  assert.equal(toPublicGame('split-id', state).playerHands.length, 2);
+});
+
+test('split aces receive one card each and cannot be hit', () => {
+  const state = {
+    ...createTestState(),
+    deck: [
+      { rank: '4', suit: 'clubs' },
+      { rank: '5', suit: 'clubs' },
+    ],
+    playerHand: [
+      { rank: 'A', suit: 'hearts' },
+      { rank: 'A', suit: 'spades' },
+    ],
+  };
+
+  applyAction(state, 'split', { deferDealerResolution: true });
+  assert.equal(state.status, 'complete');
+  assert.equal(state.splitAces, true);
+  assert.equal(state.hands.every(({ status }) => status === 'complete'), true);
+  assert.equal(applyAction(state, 'hit', { deferDealerResolution: true }).status, 409);
+
+  resolveDealerHand(state);
+  resolveHandOutcome(state);
+  assert.equal(state.hands.some(({ outcome }) => outcome === 'player_blackjack'), false);
+});
+
+test('a 21 made after splitting is a regular hand win, not blackjack', () => {
+  const state = {
+    ...createTestState(),
+    deck: [
+      { rank: '5', suit: 'clubs' },
+      { rank: 'A', suit: 'clubs' },
+    ],
+    playerHand: [
+      { rank: '10', suit: 'hearts' },
+      { rank: '10', suit: 'spades' },
+    ],
+  };
+
+  applyAction(state, 'split', { deferDealerResolution: true });
+  assert.equal(state.hands[0].status, 'complete');
+  applyAction(state, 'stand', { deferDealerResolution: true });
+  resolveHandOutcome(state);
+
+  assert.equal(state.hands[0].outcome, 'player_win');
+  assert.notEqual(state.hands[0].outcome, 'player_blackjack');
 });
 
 test('each hit increases the attack multiplier by 0.2 for that hand', () => {
