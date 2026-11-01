@@ -690,6 +690,7 @@ function createGame(
   selectedCharacter,
   dimensions = { width: 860, height: 490 },
   selectedTableTheme = 'default',
+  fpsLimit = 0,
 ) {
   const game = new Phaser.Game({
     type: Phaser.AUTO,
@@ -706,7 +707,8 @@ function createGame(
       antialias: true,
     },
     fps: {
-      target: 30,
+      target: fpsLimit || 60,
+      limit: fpsLimit,
     },
   });
   game.registry.set('selectedCharacter', selectedCharacter);
@@ -719,19 +721,21 @@ export function createBlackjackGame(
   battlefieldParent,
   selectedCharacter = 'adventurer',
   selectedTableTheme = 'default',
+  fpsLimit = 0,
 ) {
   return {
-    cards: createGame(cardParent, CardScene, selectedCharacter, undefined, selectedTableTheme),
+    cards: createGame(cardParent, CardScene, selectedCharacter, undefined, selectedTableTheme, fpsLimit),
     battlefield: createGame(
       battlefieldParent,
       BlackjackScene,
       selectedCharacter,
       undefined,
       selectedTableTheme,
+      fpsLimit,
     ),
   };
 }
 
-export function createBlackjackMultiplayerGame(parent) {
-  return createGame(parent, MultiplayerTableScene, 'adventurer', { width: 1000, height: 600 });
+export function createBlackjackMultiplayerGame(parent, fpsLimit = 0) {
+  return createGame(parent, MultiplayerTableScene, 'adventurer', { width: 1000, height: 600 }, 'default', fpsLimit);
 }

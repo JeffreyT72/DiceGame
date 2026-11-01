@@ -24,14 +24,27 @@ import { tableThemes } from '../../shared/table-themes.js';
 
 const cardActionDelayMs = 200;
 const expRequiredForNextLevel = (level) => level * 100;
+const fpsLimitOptions = [0, 30, 60, 90, 120, 144];
+const fpsLimitStorageKey = 'blackjack-fps-limit';
 
 const backgroundMusic = new Audio(backgroundMusicUrl);
 backgroundMusic.loop = true;
-backgroundMusic.volume = 0.3;
+const savedMusicVolumeValue = window.localStorage.getItem('blackjack-music-volume');
+const savedMusicVolume = savedMusicVolumeValue === null ? 0.3 : Number(savedMusicVolumeValue);
+backgroundMusic.volume = Number.isFinite(savedMusicVolume) && savedMusicVolume >= 0 && savedMusicVolume <= 1
+  ? savedMusicVolume
+  : 0.3;
+backgroundMusic.muted = window.localStorage.getItem('blackjack-music-muted') === 'true';
 backgroundMusic.preload = 'auto';
 
 const musicVolume = document.querySelector('#music-volume');
 const musicToggle = document.querySelector('#music-toggle');
+const fpsLimitInputs = [...document.querySelectorAll('input[name="fps-limit"]')];
+const savedFpsLimit = Number(window.localStorage.getItem(fpsLimitStorageKey));
+let fpsLimit = fpsLimitOptions.includes(savedFpsLimit) ? savedFpsLimit : 0;
+fpsLimitInputs.forEach((input) => {
+  input.checked = Number(input.value) === fpsLimit;
+});
 
 function syncMusicControls() {
   const isMuted = backgroundMusic.muted || backgroundMusic.volume === 0;
@@ -56,6 +69,8 @@ musicVolume.addEventListener('input', (event) => {
   const nextVolume = Number(event.target.value) || 0;
   backgroundMusic.volume = nextVolume;
   backgroundMusic.muted = nextVolume === 0;
+  window.localStorage.setItem('blackjack-music-volume', String(nextVolume));
+  window.localStorage.setItem('blackjack-music-muted', String(backgroundMusic.muted));
   syncMusicControls();
 
   if (nextVolume > 0) {
@@ -71,6 +86,8 @@ musicToggle.addEventListener('click', () => {
   } else {
     backgroundMusic.muted = true;
   }
+  window.localStorage.setItem('blackjack-music-volume', String(backgroundMusic.volume));
+  window.localStorage.setItem('blackjack-music-muted', String(backgroundMusic.muted));
   syncMusicControls();
 });
 
@@ -81,6 +98,32 @@ startBackgroundMusic();
 syncMusicControls();
 
 let game = null;
+let multiplayer;
+fpsLimitInputs.forEach((input) => {
+  input.addEventListener('change', () => {
+    if (!input.checked) return;
+    fpsLimit = Number(input.value);
+    window.localStorage.setItem(fpsLimitStorageKey, String(fpsLimit));
+    game?.cards.destroy(true);
+    game?.battlefield.destroy(true);
+    game = null;
+    multiplayer?.refreshFpsLimit();
+  });
+});
+
+document.querySelectorAll('[data-settings-category]').forEach((button) => {
+  button.addEventListener('click', () => {
+    const category = button.dataset.settingsCategory;
+    document.querySelectorAll('[data-settings-category]').forEach((categoryButton) => {
+      if (categoryButton === button) categoryButton.setAttribute('aria-current', 'page');
+      else categoryButton.removeAttribute('aria-current');
+    });
+    document.querySelectorAll('.settings-category').forEach((panel) => {
+      panel.hidden = panel.id !== `settings-${category}`;
+    });
+  });
+});
+
 let currentGame = null;
 let currentPlayer = null;
 let currentStats = {
@@ -121,7 +164,7 @@ const storeCurrency = document.querySelector('#store-currency');
 const tableThemeList = document.querySelector('#table-theme-list');
 const tableThemeStatus = document.querySelector('#table-theme-status');
 const characterSelect = document.querySelector('#character-select');
-const settingsStatus = document.querySelector('#settings-status');
+const characterStatus = document.querySelector('#character-status');
 characterSelect.replaceChildren(...characters.map(({ id, name }) => {
   const option = document.createElement('option');
   option.value = id;
@@ -169,7 +212,7 @@ characterSelect.addEventListener('change', async () => {
     characterSelect.disabled = false;
     paperDollCustomizer.render(selectedCharacter);
   }
-  settingsStatus.textContent = characterSettingsMessage;
+  characterStatus.textContent = characterSettingsMessage;
 });
 
 function baseMaximumHealth() {
@@ -635,6 +678,7 @@ async function startGame(selectedDungeon) {
       'battlefield-game',
       selectedCharacter,
       currentStats.tableTheme,
+      fpsLimit,
     );
     await beginDungeon(selectedDungeon);
   } finally {
@@ -752,7 +796,8 @@ const characterLab = createCharacterLab({
   },
 });
 renderProgression = characterLab.renderProgression;
-const multiplayer = createMultiplayerController({
+multiplayer = createMultiplayerController({
+  getFpsLimit: () => fpsLimit,
   onStatsUpdated: (account) => {
     currentStats = account.stats;
     applyTotalExp(account.stats.totalExp);
@@ -771,10 +816,10 @@ const screens = createScreenController({
     startGame,
     currentStats.level ?? 1,
   ),
-  onOpenSettings: () => {
+  onOpenCharacter: () => {
     characterSelect.value = selectedCharacter;
     paperDollCustomizer.render(selectedCharacter);
-    settingsStatus.textContent = characterSettingsMessage;
+    characterStatus.textContent = characterSettingsMessage;
   },
   onOpenStore: () => {
     renderCurrency();

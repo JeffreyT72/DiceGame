@@ -9,38 +9,56 @@
   <body>
     <main class="game-card">
       <header class="game-header">
-        <div>
-          <p class="eyebrow">Choose your adventure</p>
-          <h1>Blackjack Survivors</h1>
+        <div class="brand-lockup" aria-label="Blackjack Survivors">
+          <span class="brand-mark" aria-hidden="true">21</span>
+          <span class="brand-wordmark"><strong>BLACKJACK</strong><span>SURVIVORS</span></span>
         </div>
-        <p class="rules">Play blackjack against dungeon foes.<br />Choose loot after each stage and see how deep you can go.</p>
+        <p class="rules"><span aria-hidden="true"></span>A roguelike card battler</p>
       </header>
 
       <section id="auth-panel" class="auth-panel" aria-labelledby="auth-title">
-        <p class="eyebrow">Player account</p>
-        <h2 id="auth-title">Sign in to play</h2>
-        <p class="auth-description">Your experience is saved to your account.</p>
-        <form id="auth-form">
-          <div id="login-fields">
-            <label for="auth-identifier">Username or email</label>
-            <input id="auth-identifier" name="identifier" type="text" autocomplete="username" maxlength="254" required />
+        <div class="landing-copy">
+          <p class="eyebrow"><span aria-hidden="true">✦</span> Luck is just another weapon</p>
+          <h1>EVERY HAND<br />IS A <em>FIGHT.</em></h1>
+          <p class="landing-description">Face the dungeon one card at a time. Beat the odds, build your run, and survive long enough to hit 21.</p>
+          <div class="landing-art" aria-hidden="true">
+            <span class="landing-card landing-card-back">♣</span>
+            <span class="landing-card landing-card-ten"><small>10</small>♥</span>
+            <span class="landing-card landing-card-ace"><small>A</small>♠</span>
+            <span class="landing-chip">21</span>
           </div>
-          <div id="signup-fields" hidden>
-            <label for="auth-username">Username</label>
-            <input id="auth-username" name="username" type="text" autocomplete="username" minlength="3" maxlength="24" pattern="[A-Za-z0-9_]+" />
-            <label for="auth-email">Email</label>
-            <input id="auth-email" name="email" type="email" autocomplete="email" maxlength="254" />
-            <div class="auth-honeypot" aria-hidden="true">
-              <label for="auth-honeypot">I agree to the terms and conditions</label>
-              <input id="auth-honeypot" name="honeypot" type="checkbox" tabindex="-1" autocomplete="off" />
+          <ul class="landing-highlights" aria-label="Game features">
+            <li><span aria-hidden="true">♠</span> Blackjack combat</li>
+            <li><span aria-hidden="true">✦</span> Dungeon loot</li>
+            <li><span aria-hidden="true">∞</span> One more run</li>
+          </ul>
+        </div>
+        <div class="auth-card">
+          <p class="eyebrow">Player account</p>
+          <h2 id="auth-title">Sign in to play</h2>
+          <p class="auth-description">Your next run is waiting. Your progress stays with you.</p>
+          <form id="auth-form">
+            <div id="login-fields">
+              <label for="auth-identifier">Username or email</label>
+              <input id="auth-identifier" name="identifier" type="text" autocomplete="username" maxlength="254" required />
             </div>
-          </div>
-          <label for="auth-password">Password</label>
-          <input id="auth-password" name="password" type="password" autocomplete="current-password" minlength="8" maxlength="128" required />
-          <p id="auth-error" class="auth-error" role="alert" aria-live="polite"></p>
-          <button id="auth-submit" class="button button-primary auth-submit" type="submit">Sign in</button>
-        </form>
-        <button id="auth-switch" class="auth-switch" type="button">Need an account? Sign up</button>
+            <div id="signup-fields" hidden>
+              <label for="auth-username">Username</label>
+              <input id="auth-username" name="username" type="text" autocomplete="username" minlength="3" maxlength="24" pattern="[A-Za-z0-9_]+" />
+              <label for="auth-email">Email</label>
+              <input id="auth-email" name="email" type="email" autocomplete="email" maxlength="254" />
+              <div class="auth-honeypot" aria-hidden="true">
+                <label for="auth-honeypot">I agree to the terms and conditions</label>
+                <input id="auth-honeypot" name="honeypot" type="checkbox" tabindex="-1" autocomplete="off" />
+              </div>
+            </div>
+            <label for="auth-password">Password</label>
+            <input id="auth-password" name="password" type="password" autocomplete="current-password" minlength="8" maxlength="128" required />
+            <p id="auth-error" class="auth-error" role="alert" aria-live="polite"></p>
+            <button id="auth-submit" class="button button-primary auth-submit" type="submit">Sign in</button>
+          </form>
+          <button id="auth-switch" class="auth-switch" type="button">Need an account? Sign up</button>
+        </div>
       </section>
 
       <section id="game-panel" hidden>
@@ -90,8 +108,11 @@
             <button id="leaderboard-button" class="lobby-option" type="button">
               <span class="lobby-option-kicker">Hall of legends</span><strong>Leaderboard</strong><span>See who has earned the most EXP.</span>
             </button>
+            <button id="character-button" class="lobby-option" type="button">
+              <span class="lobby-option-kicker">Make it yours</span><strong>Character</strong><span>Choose your adventurer and customize their appearance.</span>
+            </button>
             <button id="settings-button" class="lobby-option" type="button">
-              <span class="lobby-option-kicker">Make it yours</span><strong>Settings</strong><span>Choose your character and music.</span>
+              <span class="lobby-option-kicker">Game preferences</span><strong>Settings</strong><span>Adjust background music.</span>
             </button>
           </nav>
         </section>
@@ -326,10 +347,10 @@
           </div>
         </section>
 
-        <section id="settings-screen" class="screen-panel" aria-labelledby="settings-title" hidden>
+        <section id="character-screen" class="screen-panel" aria-labelledby="character-title" hidden>
           <button class="button button-quiet screen-back" type="button" data-back-to-lobby>Back to game menu</button>
-          <p class="eyebrow">Game preferences</p>
-          <h2 id="settings-title">Settings</h2>
+          <p class="eyebrow">Your adventurer</p>
+          <h2 id="character-title">Character</h2>
           <p class="screen-description">Choose the character you want to take into the dungeon.</p>
           <div class="settings-field">
             <label for="character-select">Player character</label>
@@ -350,14 +371,69 @@
             <p class="paper-doll-note">Wearable options will appear here as matching art is added.</p>
             <p id="paper-doll-preview-status" class="paper-doll-preview-status" role="status" aria-live="polite"></p>
           </section>
-          <div class="settings-field music-field">
-            <label for="music-volume">Background music</label>
-            <div class="music-controls">
-              <input id="music-volume" type="range" min="0" max="1" step="0.05" value="0.3" aria-label="Background music volume" />
-              <button id="music-toggle" class="button button-secondary" type="button" aria-label="Mute background music">Mute</button>
+          <p id="character-status" class="character-status" role="status" aria-live="polite"></p>
+        </section>
+
+        <section id="settings-screen" class="screen-panel" aria-labelledby="settings-title" hidden>
+          <button class="button button-quiet screen-back" type="button" data-back-to-lobby>Back to game menu</button>
+          <div class="settings-heading">
+            <div>
+              <p class="eyebrow">Game preferences</p>
+              <h2 id="settings-title">Settings</h2>
+            </div>
+            <p>Changes are saved automatically.</p>
+          </div>
+          <div class="settings-layout">
+            <nav class="settings-navigation" aria-label="Settings categories">
+              <button class="settings-navigation-item" type="button" aria-current="page" data-settings-category="sound">
+                <span class="settings-navigation-icon" aria-hidden="true">♫</span>
+                <span><strong>Sound</strong><small>Volume and music</small></span>
+              </button>
+              <button class="settings-navigation-item" type="button" data-settings-category="graphics">
+                <span class="settings-navigation-icon" aria-hidden="true">◈</span>
+                <span><strong>Graphics</strong><small>Performance and display</small></span>
+              </button>
+            </nav>
+            <div class="settings-content">
+              <section id="settings-sound" class="settings-category" aria-labelledby="settings-sound-title">
+                <header class="settings-category-heading">
+                  <div class="settings-category-icon" aria-hidden="true">♫</div>
+                  <div><h3 id="settings-sound-title">Sound</h3><p>Volume and music</p></div>
+                </header>
+                <article class="settings-card music-field">
+                  <div class="settings-card-copy">
+                    <label for="music-volume">Background music</label>
+                    <p>Set the volume or mute the soundtrack.</p>
+                  </div>
+                  <div class="music-controls">
+                    <input id="music-volume" type="range" min="0" max="1" step="0.05" value="0.3" aria-label="Background music volume" />
+                    <button id="music-toggle" class="button button-secondary" type="button" aria-label="Mute background music">Mute</button>
+                  </div>
+                </article>
+              </section>
+              <section id="settings-graphics" class="settings-category" aria-labelledby="settings-graphics-title" hidden>
+                <header class="settings-category-heading">
+                  <div class="settings-category-icon" aria-hidden="true">◈</div>
+                  <div><h3 id="settings-graphics-title">Graphics</h3><p>Performance and display</p></div>
+                </header>
+                <article class="settings-card">
+                  <div class="settings-card-copy">
+                    <h4>FPS limit</h4>
+                    <p>Higher frame rates can look smoother and use more battery. Actual FPS depends on your device.</p>
+                  </div>
+                  <fieldset class="fps-options">
+                    <legend class="visually-hidden">FPS limit</legend>
+                    <label><input type="radio" name="fps-limit" value="0" checked /><span>Unlimited</span></label>
+                    <label><input type="radio" name="fps-limit" value="30" /><span>30</span></label>
+                    <label><input type="radio" name="fps-limit" value="60" /><span>60</span></label>
+                    <label><input type="radio" name="fps-limit" value="90" /><span>90</span></label>
+                    <label><input type="radio" name="fps-limit" value="120" /><span>120</span></label>
+                    <label><input type="radio" name="fps-limit" value="144" /><span>144</span></label>
+                  </fieldset>
+                </article>
+              </section>
             </div>
           </div>
-          <p id="settings-status" class="settings-status" role="status" aria-live="polite"></p>
         </section>
 
         <section id="placeholder-screen" class="screen-panel placeholder-screen" hidden>

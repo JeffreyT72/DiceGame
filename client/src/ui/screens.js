@@ -4,7 +4,7 @@ export function createScreenController({
   onOpenLeaderboard,
   onOpenMultiplayer,
   onOpenDungeons,
-  onOpenSettings,
+  onOpenCharacter,
   onOpenStore,
 }) {
   const screens = {
@@ -15,6 +15,7 @@ export function createScreenController({
     lab: document.querySelector('#lab-screen'),
     store: document.querySelector('#store-screen'),
     leaderboard: document.querySelector('#leaderboard-screen'),
+    character: document.querySelector('#character-screen'),
     settings: document.querySelector('#settings-screen'),
     placeholder: document.querySelector('#placeholder-screen'),
   };
@@ -78,7 +79,10 @@ export function createScreenController({
   });
   document.querySelector('#settings-button').addEventListener('click', () => {
     show('settings');
-    onOpenSettings();
+  });
+  document.querySelector('#character-button').addEventListener('click', () => {
+    show('character');
+    onOpenCharacter();
   });
   document.querySelectorAll('[data-back-to-lobby]').forEach((button) => {
     button.addEventListener('click', () => {
