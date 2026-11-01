@@ -74,6 +74,7 @@
             <div>
               <p class="eyebrow">Your next hand awaits</p>
               <h2 id="lobby-title">The table is yours.</h2>
+              <p class="lobby-player-title">Current title <strong id="lobby-player-title"></strong></p>
               <p class="screen-description">Play your cards. Outlast the monsters. Become a legend.</p>
             </div>
             <div class="lobby-status" aria-label="Adventurer progress">
@@ -315,7 +316,9 @@
           <div class="store-content">
             <section id="store-panel-title" class="store-panel" role="tabpanel" aria-labelledby="store-tab-title">
               <h3>Titles</h3>
-              <p>No titles are available yet.</p>
+              <p>Purchase titles with currency and equip one to show it off.</p>
+              <div id="title-list" class="table-theme-list"></div>
+              <p id="title-status" class="table-theme-status" role="status" aria-live="polite"></p>
             </section>
             <section id="store-panel-avatar" class="store-panel" role="tabpanel" aria-labelledby="store-tab-avatar" hidden>
               <h3>Avatars</h3>

@@ -26,6 +26,7 @@ import {
   meetsDungeonLevelRequirement,
 } from '../shared/dungeon-config.js';
 import { getTableTheme } from '../shared/table-themes.js';
+import { getTitle, titles } from '../shared/titles.js';
 import { MultiplayerRooms } from './multiplayer.js';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -77,7 +78,7 @@ playerDatabase.exec(`
     monsters_defeated INTEGER NOT NULL DEFAULT 0 CHECK (monsters_defeated >= 0),
     character_name TEXT NOT NULL DEFAULT '',
     character TEXT NOT NULL DEFAULT 'adventurer',
-    title TEXT NOT NULL DEFAULT '',
+    title TEXT NOT NULL DEFAULT '0',
     frame TEXT NOT NULL DEFAULT '',
     table_theme TEXT NOT NULL DEFAULT 'default',
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -88,6 +89,13 @@ playerDatabase.exec(`
     table_id TEXT NOT NULL,
     purchased_at TEXT NOT NULL DEFAULT (datetime('now')),
     PRIMARY KEY (user_id, table_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS player_title_purchases (
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title_id INTEGER NOT NULL,
+    purchased_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (user_id, title_id)
   );
 
   CREATE TABLE IF NOT EXISTS player_sessions (
@@ -197,7 +205,7 @@ for (const column of ['strength', 'agility', 'constitution', 'luck', 'currency']
 for (const [column, defaultValue] of Object.entries({
   character_name: "''",
   character: "'adventurer'",
-  title: "''",
+  title: "'0'",
   frame: "''",
   table_theme: "'default'",
 })) {
@@ -205,6 +213,15 @@ for (const [column, defaultValue] of Object.entries({
     playerDatabase.exec(`ALTER TABLE player_stats ADD COLUMN ${column} TEXT NOT NULL DEFAULT ${defaultValue}`);
   }
 }
+const validTitleIds = titles.map(({ id }) => String(id));
+playerDatabase.prepare(`
+  UPDATE player_stats SET title = '0'
+  WHERE title IS NULL OR title NOT IN (${validTitleIds.map(() => '?').join(', ')})
+`).run(...validTitleIds);
+playerDatabase.exec(`
+  INSERT OR IGNORE INTO player_title_purchases (user_id, title_id)
+  SELECT user_id, CAST(title AS INTEGER) FROM player_stats WHERE title <> '0'
+`);
 playerDatabase.exec(`
   UPDATE player_stats
   SET character_name = (
@@ -703,7 +720,7 @@ const costumeCharacters = new Set(['adventurer', 'adventurer-male', 'mel', 'body
 
 app.patch('/api/player/costume', requirePlayer, (request, response) => {
   const costume = request.body;
-  const costumeFields = ['character', 'title', 'frame'];
+  const costumeFields = ['character', 'frame'];
   if (
     !costume
     || typeof costume !== 'object'
@@ -720,7 +737,7 @@ app.patch('/api/player/costume', requirePlayer, (request, response) => {
   ) {
     return response.status(400).json({ error: 'Choose a valid character.' });
   }
-  for (const field of ['title', 'frame']) {
+  for (const field of ['frame']) {
     if (
       Object.hasOwn(costume, field)
       && (typeof costume[field] !== 'string' || costume[field].length > 64)
@@ -730,21 +747,76 @@ app.patch('/api/player/costume', requirePlayer, (request, response) => {
   }
 
   const existingCostume = playerDatabase.prepare(`
-    SELECT character, title, frame FROM player_stats WHERE user_id = ?
+    SELECT character, frame FROM player_stats WHERE user_id = ?
   `).get(request.playerId);
   if (!existingCostume) {
     return response.status(404).json({ error: 'Player stats could not be found.' });
   }
   playerDatabase.prepare(`
     UPDATE player_stats
-    SET character = ?, title = ?, frame = ?, updated_at = datetime('now')
+    SET character = ?, frame = ?, updated_at = datetime('now')
     WHERE user_id = ?
   `).run(
     costume.character ?? existingCostume.character,
-    costume.title ?? existingCostume.title,
     costume.frame ?? existingCostume.frame,
     request.playerId,
   );
+  response.json({ stats: playerStats(request.playerId) });
+});
+
+app.post('/api/player/titles/purchase', requirePlayer, (request, response) => {
+  const title = getTitle(request.body?.titleId);
+  if (!title || title.id === 0) {
+    return response.status(400).json({ error: 'Choose a valid title to purchase.' });
+  }
+
+  const purchase = playerDatabase.transaction(() => {
+    const alreadyOwned = playerDatabase.prepare(`
+      SELECT 1 FROM player_title_purchases WHERE user_id = ? AND title_id = ?
+    `).get(request.playerId, title.id);
+    if (alreadyOwned) {
+      return { error: 'You already own this title.', status: 409 };
+    }
+
+    const debit = playerDatabase.prepare(`
+      UPDATE player_stats
+      SET currency = currency - ?, updated_at = datetime('now')
+      WHERE user_id = ? AND currency >= ?
+    `).run(title.price, request.playerId, title.price);
+    if (debit.changes === 0) {
+      return { error: 'You do not have enough currency for this title.', status: 409 };
+    }
+
+    playerDatabase.prepare(`
+      INSERT INTO player_title_purchases (user_id, title_id) VALUES (?, ?)
+    `).run(request.playerId, title.id);
+    return { stats: playerStats(request.playerId) };
+  });
+  const result = purchase();
+  if (result.error) {
+    return response.status(result.status).json({ error: result.error });
+  }
+  response.json(result);
+});
+
+app.patch('/api/player/title', requirePlayer, (request, response) => {
+  const title = getTitle(request.body?.titleId);
+  if (!title) {
+    return response.status(400).json({ error: 'Choose a valid title.' });
+  }
+
+  if (title.id !== 0) {
+    const owned = playerDatabase.prepare(`
+      SELECT 1 FROM player_title_purchases WHERE user_id = ? AND title_id = ?
+    `).get(request.playerId, title.id);
+    if (!owned) {
+      return response.status(403).json({ error: 'Purchase this title before applying it.' });
+    }
+  }
+
+  playerDatabase.prepare(`
+    UPDATE player_stats SET title = ?, updated_at = datetime('now') WHERE user_id = ?
+  `).run(String(title.id), request.playerId);
   response.json({ stats: playerStats(request.playerId) });
 });
 
@@ -1018,6 +1090,12 @@ function playerStats(userId) {
     ...playerDatabase.prepare(`
       SELECT table_id AS tableId FROM player_table_purchases WHERE user_id = ?
     `).all(userId).map(({ tableId }) => tableId),
+  ];
+  stats.ownedTitles = [
+    0,
+    ...playerDatabase.prepare(`
+      SELECT title_id AS titleId FROM player_title_purchases WHERE user_id = ?
+    `).all(userId).map(({ titleId }) => titleId),
   ];
   const allocatedPoints = stats.strength + stats.agility + stats.constitution + stats.luck;
   const level = getLevel(stats.totalExp);

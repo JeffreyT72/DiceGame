@@ -21,6 +21,7 @@ import {
   getDungeonStageCount,
 } from '../../shared/dungeon-config.js';
 import { tableThemes } from '../../shared/table-themes.js';
+import { getTitle, titles } from '../../shared/titles.js';
 
 const cardActionDelayMs = 200;
 const expRequiredForNextLevel = (level) => level * 100;
@@ -134,10 +135,11 @@ let currentStats = {
   currency: 0,
   availableStatPoints: 0,
   character: characters[0].id,
-  title: '',
+  title: '0',
   frame: '',
   tableTheme: 'default',
   ownedTableThemes: ['default'],
+  ownedTitles: [0],
 };
 let runState = null;
 let resolvingStage = false;
@@ -163,6 +165,9 @@ const lobbyCurrency = document.querySelector('#lobby-currency');
 const storeCurrency = document.querySelector('#store-currency');
 const tableThemeList = document.querySelector('#table-theme-list');
 const tableThemeStatus = document.querySelector('#table-theme-status');
+const titleList = document.querySelector('#title-list');
+const titleStatus = document.querySelector('#title-status');
+const lobbyPlayerTitle = document.querySelector('#lobby-player-title');
 const characterSelect = document.querySelector('#character-select');
 const characterStatus = document.querySelector('#character-status');
 characterSelect.replaceChildren(...characters.map(({ id, name }) => {
@@ -181,6 +186,8 @@ let selectedCharacter = characters[0].id;
 let characterSettingsMessage = '';
 let tableThemeMessage = '';
 let tableThemeAction = null;
+let titleMessage = '';
+let titleAction = null;
 const tableThemePreviews = {
   '062633': deepTealPreview,
   '630632': berryPreview,
@@ -334,6 +341,65 @@ async function updateTableTheme(theme, action) {
   } finally {
     tableThemeAction = null;
     renderTableThemes();
+  }
+}
+
+function renderTitles() {
+  const ownedTitles = new Set(currentStats.ownedTitles ?? [0]);
+  const cards = document.createDocumentFragment();
+  for (const title of titles) {
+    const card = document.createElement('article');
+    card.className = 'table-theme-card';
+    const name = document.createElement('h4');
+    name.textContent = title.name;
+    const action = document.createElement('button');
+    action.className = `button ${ownedTitles.has(title.id) ? 'button-secondary' : 'button-primary'}`;
+    action.type = 'button';
+    const isActive = currentStats.title === String(title.id);
+    action.textContent = isActive
+      ? 'In use'
+      : ownedTitles.has(title.id)
+        ? 'Apply'
+        : `Purchase · ${title.price} currency`;
+    action.disabled = Boolean(titleAction) || isActive;
+    action.addEventListener('click', () => {
+      void updateTitle(title, ownedTitles.has(title.id) ? 'apply' : 'purchase');
+    });
+    card.append(name, action);
+    cards.append(card);
+  }
+  titleList.replaceChildren(cards);
+  titleStatus.textContent = titleMessage;
+}
+
+async function updateTitle(title, action) {
+  titleAction = title.id;
+  titleMessage = '';
+  renderTitles();
+  try {
+    const result = await request(
+      action === 'purchase' ? '/api/player/titles/purchase' : '/api/player/title',
+      {
+        method: action === 'purchase' ? 'POST' : 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ titleId: title.id }),
+      },
+    );
+    currentStats = result.stats;
+    renderCurrency();
+    if (action === 'apply') {
+      lobbyPlayerTitle.textContent = title.name;
+      game?.battlefield.scene.getScene('blackjack')?.setTitle(title.name);
+      titleMessage = `${title.name} equipped.`;
+    } else {
+      titleMessage = `${title.name} purchased. Apply it when you are ready.`;
+    }
+  } catch (error) {
+    console.error(error);
+    titleMessage = `Could not ${action === 'purchase' ? 'purchase' : 'apply'} ${title.name}: ${error.message}`;
+  } finally {
+    titleAction = null;
+    renderTitles();
   }
 }
 
@@ -663,6 +729,7 @@ async function chooseItem(itemId) {
 async function enterGame(account) {
   currentStats = account.stats;
   tableThemeMessage = '';
+  titleMessage = '';
   selectedCharacter = characters.some(({ id }) => id === currentStats.character)
     ? currentStats.character
     : characters[0].id;
@@ -673,6 +740,9 @@ async function enterGame(account) {
   applyTotalExp(account.stats.totalExp);
   renderCurrency();
   accountName.textContent = currentStats.characterName;
+  const activeTitle = getTitle(Number(currentStats.title))?.name ?? '';
+  lobbyPlayerTitle.textContent = activeTitle;
+  game?.battlefield.scene.getScene('blackjack')?.setTitle(activeTitle);
   screens.show('lobby');
   renderProgression();
 }
@@ -690,6 +760,7 @@ async function startGame(selectedDungeon) {
       selectedCharacter,
       currentStats.tableTheme,
       fpsLimit,
+      getTitle(Number(currentStats.title))?.name ?? '',
     );
     await beginDungeon(selectedDungeon);
   } finally {
@@ -850,6 +921,7 @@ const screens = createScreenController({
   onOpenStore: () => {
     renderCurrency();
     renderTableThemes();
+    renderTitles();
   },
 });
 const auth = createAuthController({

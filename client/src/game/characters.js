@@ -32,11 +32,16 @@ export const characters = [
     name: 'Testing',
     spriteSheet: testingSpriteSheet,
     spriteLayout: {
-      idleFrames: [0, 362, 724],
-      frameWidth: 362,
-      frameHeight: 483,
+      idleFrames: [0, 150, 300, 450],
+      frameWidth: 150,
+      frameHeight: 150,
       frameTop: 0,
+      animationRows: {
+        attack: 1,
+        special: 2,
+        hurt: 3,
+      },
     },
-    displayScale: 1,
+    displayScale: 1.25,
   },
 ];

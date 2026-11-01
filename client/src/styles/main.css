@@ -993,6 +993,17 @@ h1 {
   letter-spacing: -0.045em;
 }
 
+.lobby-player-title {
+  margin: 8px 0 0;
+  color: #c8a95c;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.lobby-player-title strong {
+  color: #f0d47d;
+}
+
 .lobby-heading .screen-description {
   margin: 8px 0 0;
   color: #b4b8aa;

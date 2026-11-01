@@ -16,8 +16,10 @@ class BlackjackScene extends Phaser.Scene {
     this.pendingBattlefield = null;
     this.combatState = { playerHp: 100, monsterHp: 100 };
     this.selectedCharacter = 'adventurer';
+    this.selectedTitle = '';
     this.heroSprite = null;
     this.paperDoll = null;
+    this.heroAnimationTimer = null;
     this.lastDamageGameId = null;
     this.renderedGameId = null;
     this.renderedCardCounts = { dealer: 0, player: 0 };
@@ -32,6 +34,7 @@ class BlackjackScene extends Phaser.Scene {
   create() {
     this.setCharacter(this.registry.get('selectedCharacter') ?? 'adventurer');
     this.drawBattlefield();
+    this.setTitle(this.registry.get('selectedTitle') ?? '');
     this.healthLayer = this.add.container(0, 0);
     this.stageText = this.add.text(430, 42, 'DUNGEON · STAGE 1 / 10', {
       color: '#b4d282',
@@ -56,34 +59,70 @@ class BlackjackScene extends Phaser.Scene {
     const character = characters.find(({ id }) => id === characterId) ?? characters[0];
     const layout = character.spriteLayout ?? characterSpriteLayout;
     const { idleFrames, frameWidth, frameHeight, frameTop } = layout;
+    const animations = {
+      idle: { frameXs: idleFrames, sourceTop: frameTop },
+      ...Object.fromEntries(
+        Object.entries(layout.animationRows ?? {}).map(([name, row]) => [
+          name,
+          { frameXs: idleFrames.map((_, index) => index * frameWidth), sourceTop: row * frameHeight },
+        ]),
+      ),
+    };
     canvas.width = frameWidth * idleFrames.length;
-    canvas.height = frameHeight;
+    canvas.height = frameHeight * Object.keys(animations).length;
     const context = canvas.getContext('2d');
 
-    idleFrames.forEach((frameX, frameIndex) => {
-      context.drawImage(
-        sheet,
-        frameX,
-        frameTop,
-        frameWidth,
-        frameHeight,
-        frameIndex * frameWidth,
-        0,
-        frameWidth,
-        frameHeight,
-      );
+    Object.entries(animations).forEach(([name, { frameXs, sourceTop }], rowIndex) => {
+      frameXs.forEach((frameX, frameIndex) => {
+        context.drawImage(
+          sheet,
+          frameX,
+          sourceTop,
+          frameWidth,
+          frameHeight,
+          frameIndex * frameWidth,
+          rowIndex * frameHeight,
+          frameWidth,
+          frameHeight,
+        );
+      });
     });
 
     const texture = this.textures.addCanvas(textureKey, canvas);
-    idleFrames.forEach((_, frameIndex) => {
-      texture.add(
-        `idle-${frameIndex}`,
-        0,
-        frameIndex * frameWidth,
-        0,
-        frameWidth,
-        frameHeight,
+    Object.entries(animations).forEach(([name, { frameXs }], rowIndex) => {
+      frameXs.forEach((_, frameIndex) => {
+        texture.add(
+          `${name}-${frameIndex}`,
+          0,
+          frameIndex * frameWidth,
+          rowIndex * frameHeight,
+          frameWidth,
+          frameHeight,
+        );
+      });
+    });
+  }
+
+  setHeroAnimation(animation) {
+    const character = characters.find(({ id }) => id === this.selectedCharacter) ?? characters[0];
+    const layout = character.spriteLayout ?? characterSpriteLayout;
+    if (layout.animationRows?.[animation] === undefined) return;
+
+    this.heroAnimationTimer?.remove(false);
+    this.paperDoll.frameIndex = 0;
+    this.paperDoll.setLayer(
+      'body',
+      `hero-idle-${character.id}`,
+      layout.idleFrames.map((_, frameIndex) => `${animation}-${frameIndex}`),
+    );
+    this.heroAnimationTimer = this.time.delayedCall(1000, () => {
+      this.paperDoll.frameIndex = 0;
+      this.paperDoll.setLayer(
+        'body',
+        `hero-idle-${character.id}`,
+        layout.idleFrames.map((_, frameIndex) => `idle-${frameIndex}`),
       );
+      this.heroAnimationTimer = null;
     });
   }
 
@@ -91,8 +130,11 @@ class BlackjackScene extends Phaser.Scene {
     const character = characters.find(({ id }) => id === characterId) ?? characters[0];
     this.selectedCharacter = character.id;
     this.registry.set('selectedCharacter', character.id);
+    this.heroAnimationTimer?.remove(false);
+    this.heroAnimationTimer = null;
     this.createHeroIdleTexture(character.id);
     if (this.paperDoll) {
+      this.paperDoll.frameIndex = 0;
       const layout = character.spriteLayout ?? characterSpriteLayout;
       this.paperDoll.setLayer(
         'body',
@@ -102,6 +144,11 @@ class BlackjackScene extends Phaser.Scene {
       this.heroSprite.setScale(character.displayScale ?? 1.25);
     }
     this.heroLabel?.setText(character.name.toUpperCase());
+  }
+
+  setTitle(title) {
+    this.selectedTitle = title;
+    this.heroTitleLabel?.setText(title.toUpperCase());
   }
 
   drawBattlefield() {
@@ -124,6 +171,12 @@ class BlackjackScene extends Phaser.Scene {
       color: '#e9f5ed',
       fontFamily: 'Arial, sans-serif',
       fontSize: '17px',
+      fontStyle: 'bold',
+    }).setOrigin(0.5);
+    this.heroTitleLabel = this.add.text(210, 162, this.selectedTitle.toUpperCase(), {
+      color: '#f0d47d',
+      fontFamily: 'Arial, sans-serif',
+      fontSize: '13px',
       fontStyle: 'bold',
     }).setOrigin(0.5);
     this.add.text(650, 140, 'MONSTER', {
@@ -236,6 +289,12 @@ class BlackjackScene extends Phaser.Scene {
       && combatState.damageEvent.gameId !== this.lastDamageGameId
     ) {
       this.lastDamageGameId = combatState.damageEvent.gameId;
+      const { damageEvent } = combatState;
+      if (damageEvent.direction === 'taken') {
+        if (!damageEvent.dodged) this.setHeroAnimation('hurt');
+      } else {
+        this.setHeroAnimation(damageEvent.criticalHit ? 'special' : 'attack');
+      }
       this.showDamageEffect(combatState.damageEvent);
     }
   }
@@ -736,6 +795,7 @@ function createGame(
   dimensions = { width: 860, height: 490 },
   selectedTableTheme = 'default',
   fpsLimit = 0,
+  selectedTitle = '',
 ) {
   const game = new Phaser.Game({
     type: Phaser.AUTO,
@@ -758,6 +818,7 @@ function createGame(
   });
   game.registry.set('selectedCharacter', selectedCharacter);
   game.registry.set('selectedTableTheme', selectedTableTheme);
+  game.registry.set('selectedTitle', selectedTitle);
   return game;
 }
 
@@ -767,6 +828,7 @@ export function createBlackjackGame(
   selectedCharacter = 'adventurer',
   selectedTableTheme = 'default',
   fpsLimit = 0,
+  selectedTitle = '',
 ) {
   return {
     cards: createGame(cardParent, CardScene, selectedCharacter, undefined, selectedTableTheme, fpsLimit),
@@ -777,6 +839,7 @@ export function createBlackjackGame(
       undefined,
       selectedTableTheme,
       fpsLimit,
+      selectedTitle,
     ),
   };
 }
