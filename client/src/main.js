@@ -432,7 +432,6 @@ function renderControls() {
     && secondCard
     && !currentGame?.playerHands
     && cardValue(firstCard) === cardValue(secondCard)
-    && splitStake > 0
     && splitStake < (runState?.playerHp ?? 0),
   );
   hitButton.disabled = startingHand || !active || !handInProgress;
