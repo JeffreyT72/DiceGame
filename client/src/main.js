@@ -125,7 +125,6 @@ document.querySelectorAll('[data-settings-category]').forEach((button) => {
 });
 
 let currentGame = null;
-let currentPlayer = null;
 let currentStats = {
   totalExp: 0,
   strength: 0,
@@ -662,7 +661,6 @@ async function chooseItem(itemId) {
 }
 
 async function enterGame(account) {
-  currentPlayer = account.user;
   currentStats = account.stats;
   tableThemeMessage = '';
   selectedCharacter = characters.some(({ id }) => id === currentStats.character)
@@ -674,7 +672,7 @@ async function enterGame(account) {
   game?.cards.scene.getScene('blackjack')?.setTableTheme(currentStats.tableTheme);
   applyTotalExp(account.stats.totalExp);
   renderCurrency();
-  accountName.textContent = currentPlayer.username;
+  accountName.textContent = currentStats.characterName;
   screens.show('lobby');
   renderProgression();
 }
@@ -863,7 +861,6 @@ const auth = createAuthController({
     }
   },
   onSignedOut: () => {
-    currentPlayer = null;
     currentGame = null;
     runState = null;
     game?.cards.destroy(true);

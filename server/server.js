@@ -75,6 +75,7 @@ playerDatabase.exec(`
     losses INTEGER NOT NULL DEFAULT 0 CHECK (losses >= 0),
     pushes INTEGER NOT NULL DEFAULT 0 CHECK (pushes >= 0),
     monsters_defeated INTEGER NOT NULL DEFAULT 0 CHECK (monsters_defeated >= 0),
+    character_name TEXT NOT NULL DEFAULT '',
     character TEXT NOT NULL DEFAULT 'adventurer',
     title TEXT NOT NULL DEFAULT '',
     frame TEXT NOT NULL DEFAULT '',
@@ -194,6 +195,7 @@ for (const column of ['strength', 'agility', 'constitution', 'luck', 'currency']
   }
 }
 for (const [column, defaultValue] of Object.entries({
+  character_name: "''",
   character: "'adventurer'",
   title: "''",
   frame: "''",
@@ -203,6 +205,13 @@ for (const [column, defaultValue] of Object.entries({
     playerDatabase.exec(`ALTER TABLE player_stats ADD COLUMN ${column} TEXT NOT NULL DEFAULT ${defaultValue}`);
   }
 }
+playerDatabase.exec(`
+  UPDATE player_stats
+  SET character_name = (
+    SELECT username FROM users WHERE users.id = player_stats.user_id
+  )
+  WHERE character_name IS NULL OR character_name = ''
+`);
 playerDatabase.pragma('foreign_keys = ON');
 playerDatabase.prepare('DELETE FROM player_sessions WHERE expires_at <= ?')
   .run(new Date().toISOString());
@@ -586,10 +595,16 @@ app.post('/api/auth/signup', async (request, response) => {
   }
 
   const username = typeof request.body?.username === 'string' ? request.body.username.trim() : '';
+  const characterName = typeof request.body?.characterName === 'string'
+    ? request.body.characterName.trim()
+    : '';
   const email = typeof request.body?.email === 'string' ? request.body.email.trim().toLowerCase() : '';
   const password = typeof request.body?.password === 'string' ? request.body.password : '';
   if (!/^[A-Za-z0-9_]{3,24}$/.test(username)) {
     return response.status(400).json({ error: 'Username must be 3–24 characters using letters, numbers, or underscores.' });
+  }
+  if (!characterName || characterName.length > 32) {
+    return response.status(400).json({ error: 'Character name must be between 1 and 32 characters.' });
   }
   if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return response.status(400).json({ error: 'Enter a valid email address.' });
@@ -607,7 +622,9 @@ app.post('/api/auth/signup', async (request, response) => {
         INSERT INTO users (id, username, email, password_hash, password_salt, active)
         VALUES (?, ?, ?, ?, ?, 1)
       `).run(userId, username, email, passwordHash.toString('hex'), salt);
-      playerDatabase.prepare('INSERT INTO player_stats (user_id) VALUES (?)').run(userId);
+      playerDatabase.prepare(`
+        INSERT INTO player_stats (user_id, character_name) VALUES (?, ?)
+      `).run(userId, characterName);
     });
     createAccount();
   } catch (error) {
@@ -791,18 +808,20 @@ app.patch('/api/player/table-theme', requirePlayer, (request, response) => {
 
 app.get('/api/player/leaderboard', requirePlayer, (_request, response) => {
   const experience = playerDatabase.prepare(`
-    SELECT users.username, COALESCE(player_stats.total_exp, 0) AS totalExp
+    SELECT COALESCE(NULLIF(player_stats.character_name, ''), users.username) AS username,
+      COALESCE(player_stats.total_exp, 0) AS totalExp
     FROM users
     LEFT JOIN player_stats ON player_stats.user_id = users.id
     WHERE users.active = 1
-    ORDER BY totalExp DESC, users.username COLLATE NOCASE ASC
+    ORDER BY totalExp DESC, username COLLATE NOCASE ASC
   `).all();
   const monstersDefeated = playerDatabase.prepare(`
-    SELECT users.username, COALESCE(player_stats.monsters_defeated, 0) AS monstersDefeated
+    SELECT COALESCE(NULLIF(player_stats.character_name, ''), users.username) AS username,
+      COALESCE(player_stats.monsters_defeated, 0) AS monstersDefeated
     FROM users
     LEFT JOIN player_stats ON player_stats.user_id = users.id
     WHERE users.active = 1
-    ORDER BY monstersDefeated DESC, users.username COLLATE NOCASE ASC
+    ORDER BY monstersDefeated DESC, username COLLATE NOCASE ASC
   `).all();
   response.json({ experience, monstersDefeated });
 });
@@ -988,7 +1007,7 @@ function playerStats(userId) {
   const stats = playerDatabase.prepare(`
     SELECT total_exp AS totalExp, games_played AS gamesPlayed, wins, losses, pushes,
       monsters_defeated AS monstersDefeated, strength, agility, constitution, luck, currency,
-      character, title, frame, table_theme AS tableTheme
+      character_name AS characterName, character, title, frame, table_theme AS tableTheme
     FROM player_stats WHERE user_id = ?
   `).get(userId);
   if (!stats) {
@@ -1169,7 +1188,7 @@ httpServer.on('upgrade', (request, socket, head) => {
   webSocketServer.handleUpgrade(request, socket, head, (webSocket) => {
     multiplayerRooms.connect({
       id: account.user.id,
-      username: account.user.username,
+      username: account.stats.characterName,
       stats: account.stats,
     }, webSocket);
   });

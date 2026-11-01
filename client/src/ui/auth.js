@@ -16,6 +16,7 @@ export function createAuthController({
   const signupFields = document.querySelector('#signup-fields');
   const authIdentifier = document.querySelector('#auth-identifier');
   const authUsername = document.querySelector('#auth-username');
+  const authCharacterName = document.querySelector('#auth-character-name');
   const authEmail = document.querySelector('#auth-email');
   const authHoneypot = document.querySelector('#auth-honeypot');
   const authPassword = document.querySelector('#auth-password');
@@ -34,6 +35,7 @@ export function createAuthController({
     signupFields.hidden = !signingUp;
     authIdentifier.required = !signingUp;
     authUsername.required = signingUp;
+    authCharacterName.required = signingUp;
     authEmail.required = signingUp;
     authPassword.autocomplete = signingUp ? 'new-password' : 'current-password';
     authError.textContent = '';
@@ -54,6 +56,7 @@ export function createAuthController({
       const credentials = authMode === 'signup'
         ? {
             username: authUsername.value,
+            characterName: authCharacterName.value,
             email: authEmail.value,
             password: authPassword.value,
             honeypot: authHoneypot.checked,

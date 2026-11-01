@@ -45,6 +45,8 @@
             <div id="signup-fields" hidden>
               <label for="auth-username">Username</label>
               <input id="auth-username" name="username" type="text" autocomplete="username" minlength="3" maxlength="24" pattern="[A-Za-z0-9_]+" />
+              <label for="auth-character-name">Character name</label>
+              <input id="auth-character-name" name="characterName" type="text" autocomplete="nickname" maxlength="32" />
               <label for="auth-email">Email</label>
               <input id="auth-email" name="email" type="email" autocomplete="email" maxlength="254" />
               <div class="auth-honeypot" aria-hidden="true">
@@ -63,8 +65,8 @@
 
       <section id="game-panel" hidden>
         <div class="account-bar">
-          <span>Signed in as <strong id="account-name"></strong></span>
-          <button id="signout-button" class="button button-quiet" type="button">Sign out</button>
+          <span>Playing as <strong id="account-name"></strong></span>
+          <button id="signout-button" class="button button-quiet" type="button">Exit</button>
         </div>
 
         <section id="lobby-screen" class="screen-panel" aria-labelledby="lobby-title">
