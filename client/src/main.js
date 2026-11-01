@@ -224,7 +224,7 @@ function maximumHealth() {
   const itemEffects = runState && !['failed', 'complete'].includes(runState.phase)
     ? getItemEffects(runState.items)
     : { maxHealth: 0 };
-  return baseMaximumHealth() + itemEffects.maxHealth;
+  return Math.round(baseMaximumHealth() + itemEffects.maxHealth);
 }
 
 function suggestedCharacterLevel() {
@@ -370,7 +370,7 @@ function renderBattlefield() {
   });
   battlefield.setAttribute(
     'aria-label',
-    `Stage ${runState?.stage ?? 1} of ${stageCount}${boss ? ', boss' : ''}. Hero health ${runState?.playerHp ?? maximumHealth()} of ${maximumHealth()}. ${monster?.name ?? 'Monster'} health ${runState?.monsterHp ?? monster?.hp ?? 0}.`,
+    `Stage ${runState?.stage ?? 1} of ${stageCount}${boss ? ', boss' : ''}. Hero health ${Math.round(runState?.playerHp ?? maximumHealth())} of ${maximumHealth()}. ${monster?.name ?? 'Monster'} health ${Math.round(runState?.monsterHp ?? monster?.hp ?? 0)}.`,
   );
 }
 
@@ -425,13 +425,12 @@ function renderControls() {
   const canDoubleDown = currentGame?.playerHand.length === 2 && !currentGame?.doubledDown;
   const firstCard = currentGame?.playerHand[0];
   const secondCard = currentGame?.playerHand[1];
-  const cardValue = ({ rank }) => rank === 'A' ? 11 : ['J', 'Q', 'K'].includes(rank) ? 10 : Number(rank);
   const splitStake = runState?.activeWager?.hpStake ?? 0;
   const canSplit = Boolean(
     firstCard
     && secondCard
     && !currentGame?.playerHands
-    && cardValue(firstCard) === cardValue(secondCard)
+    && firstCard.rank === secondCard.rank
     && splitStake < (runState?.playerHp ?? 0),
   );
   hitButton.disabled = startingHand || !active || !handInProgress;

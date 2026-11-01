@@ -164,7 +164,7 @@ export function createMultiplayerController({ getFpsLimit, onStatsUpdated }) {
     const currentPlayer = roomState.players.find(({ id }) => id === roomState.currentPlayerId);
     const monster = roomState.monster;
     monsterName.textContent = monster?.name ?? roomState.dungeonName;
-    monsterHp.textContent = `${roomState.monsterHp} / ${monster?.hp ?? 0} HP`;
+    monsterHp.textContent = `${Math.round(roomState.monsterHp)} / ${Math.round(monster?.hp ?? 0)} HP`;
     monsterHealth.style.width = `${monster?.hp
       ? Math.max(0, Math.min(100, roomState.monsterHp / monster.hp * 100))
       : 0}%`;
@@ -220,12 +220,11 @@ export function createMultiplayerController({ getFpsLimit, onStatsUpdated }) {
         || me.hand.doubledDown || Boolean(me.hand.playerHands);
       const firstCard = me.hand.playerHand[0];
       const secondCard = me.hand.playerHand[1];
-      const cardValue = ({ rank }) => rank === 'A' ? 11 : ['J', 'Q', 'K'].includes(rank) ? 10 : Number(rank);
       split.disabled = actionPending
         || Boolean(me.hand.playerHands)
         || !firstCard
         || !secondCard
-        || cardValue(firstCard) !== cardValue(secondCard)
+        || firstCard.rank !== secondCard.rank
         || !me.betHp
         || me.betHp >= me.playerHp;
     }
@@ -258,7 +257,7 @@ export function createMultiplayerController({ getFpsLimit, onStatsUpdated }) {
     const name = document.createElement('strong');
     name.textContent = `${player.username}${player.id === room.hostId ? ' · Host' : ''}${player.id === room.currentPlayerId ? ' · Taking turn' : ''}`;
     const health = document.createElement('span');
-    health.textContent = `${player.alive ? player.playerHp : 0} / ${player.maxHp} HP${player.betHp ? ` · ${player.betHp} HP bet` : ''}${player.connected ? '' : ' · offline'}`;
+    health.textContent = `${Math.round(player.alive ? player.playerHp : 0)} / ${Math.round(player.maxHp)} HP${player.betHp ? ` · ${player.betHp} HP bet` : ''}${player.connected ? '' : ' · offline'}`;
     heading.append(name, health);
     row.append(heading);
     if (player.items.length) {

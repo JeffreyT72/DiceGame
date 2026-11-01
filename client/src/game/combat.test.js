@@ -45,6 +45,43 @@ test('a winning hand resolves damage once and starts the stage clear', () => {
   assert.equal(stageClearCalls, 1);
 });
 
+test('player and monster HP are rounded to whole numbers when resolving combat', () => {
+  const runState = {
+    phase: 'active',
+    items: [{ itemId: 'iron-necklace' }],
+    monsterHp: 90.4,
+    playerHp: 199.6,
+    stage: 1,
+  };
+  const gameState = {
+    id: 'fractional-hp-hand',
+    status: 'complete',
+    outcome: 'player_win',
+    playerScore: 20,
+    dealerScore: 18,
+    playerHand: [{ rank: '10' }, { rank: 'Q' }],
+    hitCount: 0,
+    hitMultiplier: 1,
+    doubledDown: false,
+  };
+
+  resolveCombatRound(gameState, {
+    runState,
+    currentStats: { strength: 0, luck: 0 },
+    currentMonster: () => ({ defense: 0, attackPower: 5 }),
+    maximumHealth: () => 201.4,
+    removeDungeonSession: async () => {},
+    syncStageClear: async () => {},
+    onDungeonSessionRemovalError: () => {},
+    onStageClearError: () => {},
+  });
+
+  assert.equal(runState.playerHp, 201);
+  assert.equal(runState.monsterHp, 70);
+  assert.ok(Number.isInteger(runState.playerHp));
+  assert.ok(Number.isInteger(runState.monsterHp));
+});
+
 test('matching opening ranks multiply winning damage by 1.5', () => {
   const runState = { phase: 'active', items: [], monsterHp: 100, playerHp: 200, stage: 1 };
   const gameState = {

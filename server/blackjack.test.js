@@ -99,7 +99,7 @@ test('splitting deals one card to each hand and plays them independently', () =>
     ],
     playerHand: [
       { rank: '10', suit: 'hearts' },
-      { rank: 'K', suit: 'spades' },
+      { rank: '10', suit: 'spades' },
     ],
   };
 
@@ -107,7 +107,7 @@ test('splitting deals one card to each hand and plays them independently', () =>
   assert.equal(applyAction(state, 'split', { deferDealerResolution: true }).state.status, 'playing');
   assert.deepEqual(state.hands.map(({ playerHand }) => playerHand.map(({ rank }) => rank)), [
     ['10', '5'],
-    ['K', '9'],
+    ['10', '9'],
   ]);
   assert.equal(state.activeHandIndex, 0);
   assert.equal(applyAction(state, 'double_down').status, 409);
@@ -128,6 +128,20 @@ test('splitting deals one card to each hand and plays them independently', () =>
   assert.deepEqual(state.hands.map(({ outcome }) => outcome), ['push', 'player_win']);
   assert.equal(state.outcome, 'player_win');
   assert.equal(toPublicGame('split-id', state).playerHands.length, 2);
+});
+
+test('only cards with the same rank can be split', () => {
+  const state = {
+    ...createTestState(),
+    playerHand: [
+      { rank: 'J', suit: 'hearts' },
+      { rank: 'K', suit: 'spades' },
+    ],
+  };
+
+  assert.equal(canSplitHand(state), false);
+  assert.equal(applyAction(state, 'split').status, 409);
+  assert.equal(state.hands, undefined);
 });
 
 test('split aces receive one card each and cannot be hit', () => {

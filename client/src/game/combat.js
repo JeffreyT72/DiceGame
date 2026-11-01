@@ -36,6 +36,9 @@ export function resolveCombatRound(gameState, {
     return;
   }
 
+  runState.playerHp = Math.round(runState.playerHp);
+  runState.monsterHp = Math.round(runState.monsterHp);
+
   const hands = gameState.playerHands?.map((hand) => ({
     ...gameState,
     playerHand: hand.cards,
@@ -63,6 +66,7 @@ export function resolveCombatRound(gameState, {
       const pairMultiplier = handModifiers.matchingPair ? 1.5 : 1;
       const fiveCardMultiplier = handModifiers.fiveCardHand ? 2 : 1;
       const wager = runState.activeWager;
+      const maxHealth = Math.round(maximumHealth());
       const damage = Math.floor(
         baseDamage * hitMultiplier * pairMultiplier * fiveCardMultiplier
           * (1 + (wager?.percentage ?? 0) * 2) * (criticalHit ? 1.5 : 1),
@@ -82,15 +86,15 @@ export function resolveCombatRound(gameState, {
         healed: 0,
       };
       const healing = Math.min(
-        maximumHealth() - runState.playerHp,
+        maxHealth - runState.playerHp,
         Math.ceil(
           (
-            maximumHealth() * itemEffects.healOnHitHpBased
+            maxHealth * itemEffects.healOnHitHpBased
             + damage * itemEffects.healOnHitDamageBased
           ) * (1 + itemEffects.healing),
         ),
       );
-      runState.playerHp += healing;
+      runState.playerHp = Math.round(runState.playerHp + healing);
       runState.lastDamageEvent.healed = healing;
       const hitMessage = criticalHit
         ? `Critical hit! You deal ${damage} damage.`
@@ -129,7 +133,7 @@ export function resolveCombatRound(gameState, {
         };
         messages.push(`You dodge the monster's ${damage}-damage attack.${noHitMessage}${hand.doubledDown ? ' Double down doubles the damage you would take.' : ''}${wagerMessage}`);
       } else {
-        runState.playerHp = Math.max(0, runState.playerHp - damage);
+        runState.playerHp = Math.round(Math.max(0, runState.playerHp - damage));
         runState.lastDamageEvent = {
           gameId: gameState.id,
           direction: 'taken',
@@ -142,7 +146,7 @@ export function resolveCombatRound(gameState, {
           Math.max(0, runState.monsterHp - 1),
           Math.floor(damage * itemEffects.damageReflection),
         );
-        runState.monsterHp -= reflectedDamage;
+        runState.monsterHp = Math.round(runState.monsterHp - reflectedDamage);
         const reflectionMessage = reflectedDamage > 0
           ? ` Your gear reflects ${reflectedDamage} damage.`
           : '';

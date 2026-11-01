@@ -31,8 +31,8 @@ function makeRoomCode() {
 }
 
 function maximumHealth(member) {
-  return 200 + member.stats.constitution * 20
-    + getItemEffects(member.items).maxHealth;
+  return Math.round(200 + member.stats.constitution * 20
+    + getItemEffects(member.items).maxHealth);
 }
 
 function publicGame(game, room) {
@@ -352,7 +352,7 @@ export class MultiplayerRooms {
     const player = room.players.get(connection.player.id);
     if (action === 'split') {
       if (!canSplitHand(player.hand.state)) {
-        this.sendError(connection.socket, 'You can only split an equal-value pair on your first turn.');
+        this.sendError(connection.socket, 'You can only split a same-rank pair on your first turn.');
         return;
       }
       if (!player.originalBetHp) {

@@ -387,6 +387,18 @@ test('monster HP scales up with diminishing returns as more players fill the roo
   assert.ok(hpByCount[2] - hpByCount[1] > hpByCount[3] - hpByCount[2]);
 });
 
+test('multiplayer maximum HP from gear is rounded to a whole number', () => {
+  const { rooms, sockets } = createRoomFixture();
+  const room = rooms.rooms.get('ABC234');
+  const player = room.players.get('player-1');
+  player.stats.constitution = 1;
+  player.items = [{ itemId: 'assault-vest' }, { itemId: 'assault-vest' }];
+
+  rooms.broadcast(room);
+
+  assert.equal(latestRoomState(sockets[0]).players[0].maxHp, 220);
+});
+
 test('awards the configured dungeon reward when the final stage is cleared', () => {
   const { rooms, sockets, rewards } = createRoomFixture();
   const room = rooms.rooms.get('ABC234');

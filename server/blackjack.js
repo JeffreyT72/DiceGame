@@ -125,7 +125,7 @@ export function canSplitHand(state) {
     && !state.hands
     && !state.doubledDown
     && state.playerHand.length === 2
-    && cardValue(state.playerHand[0]) === cardValue(state.playerHand[1]);
+    && state.playerHand[0].rank === state.playerHand[1].rank;
 }
 
 export function createGameState({
@@ -175,7 +175,7 @@ export function applyAction(state, action, { deferDealerResolution = false } = {
 
   if (action === 'split') {
     if (!canSplitHand(state)) {
-      return { error: 'You can only split an equal-value pair on your first turn.', status: 409 };
+      return { error: 'You can only split a same-rank pair on your first turn.', status: 409 };
     }
     if (state.deck.length < 2) {
       return { error: 'There are not enough cards left to split this hand.', status: 409 };

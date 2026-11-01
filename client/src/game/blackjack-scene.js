@@ -332,7 +332,9 @@ class BlackjackScene extends Phaser.Scene {
   }
 
   addHealthBar(label, hp, maxHp, x, y, color) {
-    this.healthLayer.add(this.add.text(x, y - 20, `${label}  ${hp} / ${maxHp} HP`, {
+    const roundedHp = Math.round(hp);
+    const roundedMaxHp = Math.round(maxHp);
+    this.healthLayer.add(this.add.text(x, y - 20, `${label}  ${roundedHp} / ${roundedMaxHp} HP`, {
       color: '#e9f5ed',
       fontFamily: 'Arial, sans-serif',
       fontSize: '14px',
@@ -340,8 +342,8 @@ class BlackjackScene extends Phaser.Scene {
     }));
     this.healthLayer.add(this.add.rectangle(x + 110, y, 220, 16, 0x14221c)
       .setStrokeStyle(1, 0xb3c8b8));
-    if (hp > 0) {
-      const width = 216 * hp / maxHp;
+    if (roundedHp > 0) {
+      const width = 216 * roundedHp / roundedMaxHp;
       this.healthLayer.add(this.add.rectangle(x + 3 + width / 2, y, width, 10, color));
     }
   }
@@ -597,7 +599,7 @@ class MultiplayerTableScene extends Phaser.Scene {
 
       const playerHand = player.hand?.playerHand ?? [];
       const score = player.hand?.playerScore;
-      const details = `${player.alive ? player.playerHp : 0}/${player.maxHp} HP${score === null || score === undefined ? '' : ` · ${score}`}`;
+      const details = `${Math.round(player.alive ? player.playerHp : 0)}/${Math.round(player.maxHp)} HP${score === null || score === undefined ? '' : ` · ${score}`}`;
       this.tableLayer.add(this.add.text(x, y - 25, details, {
         color: player.alive ? '#d4e1d8' : '#ef9586',
         fontFamily: 'Arial, sans-serif',
