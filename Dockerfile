@@ -23,7 +23,6 @@ ENV PORT=3000
 
 COPY package.json package-lock.json ./
 COPY server ./server
-COPY --from=build /app/shared/items.js ./shared/items.js
 COPY shared ./shared
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/node_modules ./node_modules
