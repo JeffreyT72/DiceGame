@@ -25,11 +25,17 @@
   box-sizing: border-box;
 }
 
+:root,
+body {
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
 body {
   min-width: 320px;
-  min-height: 100vh;
   margin: 0;
-  padding: 0 clamp(16px, 5vw, 72px);
+  padding: 0;
   background:
     linear-gradient(180deg, rgb(9 7 13 / 36%) 0, var(--color-background) 700px),
     url("../assets/backgrounds/ace2e259-d07f-4733-80f7-30ad70b3194e.jpg") center top / min(100%, 1440px) auto no-repeat,
@@ -39,10 +45,12 @@ body {
 }
 
 .game-card {
-  width: min(100%, 1420px);
+  display: flex;
+  width: 100%;
+  flex-direction: column;
   min-height: 100vh;
-  padding: 0 0 48px;
-  margin: 0 auto;
+  min-height: 100dvh;
+  padding: 0 clamp(16px, 2.5vw, 36px) 24px;
 }
 
 .game-header {
@@ -368,6 +376,7 @@ h1 {
 .auth-panel {
   display: grid;
   width: 100%;
+  flex: 1;
   grid-template-columns: minmax(0, 1.15fr) minmax(340px, 0.72fr);
   align-items: center;
   gap: clamp(40px, 8vw, 120px);
@@ -2000,7 +2009,6 @@ h1 {
   }
 
   .auth-panel {
-    max-width: 560px;
     grid-template-columns: minmax(0, 1fr);
     gap: 18px;
   }
@@ -2134,10 +2142,6 @@ h1 {
 
   .button-quiet {
     grid-column: 1 / -1;
-  }
-
-  .game-card {
-    padding-bottom: 36px;
   }
 
   .play-card,
