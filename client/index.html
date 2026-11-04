@@ -12,7 +12,7 @@
         <div class="brand-lockup">
           <img class="brand-logo" src="/src/assets/banners/1057571f-6d0b-46ac-8146-6037ccb3408f.png" alt="Blackjack Survivors" />
         </div>
-        <p class="rules"><span aria-hidden="true"></span>A roguelike card battler</p>
+        <p class="rules"><span aria-hidden="true"></span>A roguelite card battler</p>
       </header>
 
       <section id="auth-panel" class="auth-panel" aria-labelledby="auth-title">
@@ -107,6 +107,9 @@
             <button id="leaderboard-button" class="lobby-option" type="button">
               <span class="lobby-option-kicker">Hall of legends</span><strong>Leaderboard</strong><span>See who has earned the most EXP.</span>
             </button>
+            <button id="tower-button" class="lobby-option" type="button">
+              <span class="lobby-option-kicker">Endless climb</span><strong>Infinite Tower</strong><span>Survive the floors. Face a boss every ten levels.</span>
+            </button>
             <button id="character-button" class="lobby-option" type="button">
               <span class="lobby-option-kicker">Make it yours</span><strong>Character</strong><span>Choose your adventurer and customize their appearance.</span>
             </button>
@@ -124,7 +127,7 @@
           <div id="dungeon-catalog" class="dungeon-catalog"></div>
         </section>
 
-        <section id="dungeon-screen" class="screen-panel" aria-label="Dungeon" hidden>
+        <section id="dungeon-screen" class="screen-panel" aria-label="Battle run" hidden>
           <button class="button button-quiet screen-back" type="button" data-back-to-lobby>Back to game menu</button>
 
           <div class="dungeon-layout">
@@ -154,7 +157,7 @@
             </section>
 
             <aside class="battlefield-card" aria-label="Dungeon battlefield">
-              <section class="dungeon-controls" aria-label="Dungeon run setup">
+              <section class="dungeon-controls" aria-label="Run details">
                 <div>
                   <span id="active-dungeon-name">Choose a dungeon</span>
                   <span>Suggested character level</span>
@@ -163,7 +166,7 @@
                 <p class="battlefield-player-level">Player level <strong id="dungeon-player-level">Level 1</strong></p>
               </section>
 
-              <section class="dungeon-progress-panel" aria-label="Dungeon stage progression">
+              <section class="dungeon-progress-panel" aria-label="Run progression">
                 <div class="dungeon-progress-heading">
                   <div>
                     <span class="dungeon-progress-kicker">Expedition path</span>

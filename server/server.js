@@ -27,7 +27,9 @@ import {
 } from '../shared/dungeon-config.js';
 import { getTableTheme } from '../shared/table-themes.js';
 import { getTitle, titles } from '../shared/titles.js';
+import { getTowerEncounter, getTowerFloorExpReward } from '../shared/tower-config.js';
 import { MultiplayerRooms } from './multiplayer.js';
+import { createTowerRunStore } from './tower-runs.js';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const currencyRewardPerDungeon = 10;
@@ -253,6 +255,7 @@ playerDatabase.exec(`
 `);
 
 const app = express();
+const towerRuns = createTowerRunStore();
 const port = Number(process.env.PORT ?? 3000);
 const clientDist = resolve(projectRoot, 'dist');
 const isProduction = process.env.NODE_ENV === 'production';
@@ -940,6 +943,100 @@ app.post('/api/player/stats/allocate', requirePlayer, (request, response) => {
   response.json(result);
 });
 
+app.post('/api/tower-runs', requirePlayer, (request, response) => {
+  const { towerRun, replacedGameIds } = towerRuns.start(request.playerId);
+  const deleteGame = database.prepare('DELETE FROM blackjack_games WHERE id = ?');
+  for (const gameId of replacedGameIds) deleteGame.run(gameId);
+  response.status(201).json({ towerRun });
+});
+
+app.delete('/api/tower-runs/:id', requirePlayer, (request, response) => {
+  const activeGameId = request.body?.gameId;
+  if (activeGameId !== undefined && activeGameId !== null
+    && (typeof activeGameId !== 'string' || activeGameId.length > 128)) {
+    return response.status(400).json({ error: 'A valid battle ID is required.' });
+  }
+  const gameIds = towerRuns.delete(request.params.id, request.playerId) ?? [];
+  const deleteGame = database.prepare('DELETE FROM blackjack_games WHERE id = ?');
+  for (const gameId of gameIds) deleteGame.run(gameId);
+  if (activeGameId) deleteGame.run(activeGameId);
+  response.status(204).end();
+});
+
+app.post('/api/tower-runs/:id/clear-floor', requirePlayer, (request, response) => {
+  const { floor, gameId } = request.body ?? {};
+  if (!Number.isSafeInteger(floor) || floor < 1) {
+    return response.status(400).json({ error: 'Floor must be a positive whole number.' });
+  }
+  if (typeof gameId !== 'string' || !gameId || gameId.length > 128) {
+    return response.status(400).json({ error: 'A valid completed battle ID is required.' });
+  }
+
+  const run = towerRuns.get(request.params.id, request.playerId);
+  if (!run) {
+    return response.status(404).json({ error: 'Tower run not found.' });
+  }
+  if (run.lastClear?.floor === floor && run.lastClear.gameId === gameId) {
+    return response.json(run.lastClear.result);
+  }
+  if (floor !== run.floor) {
+    return response.status(409).json({ error: 'Tower floors must be cleared in order.' });
+  }
+
+  const game = findGame(gameId);
+  if (!game) {
+    return response.status(404).json({ error: 'Battle not found.' });
+  }
+  const gameState = JSON.parse(game.state);
+  if (
+    gameState.status !== 'complete'
+    || !['player_blackjack', 'player_win', 'dealer_bust'].includes(gameState.outcome)
+  ) {
+    return response.status(400).json({ error: 'A floor can only be cleared after winning a completed battle.' });
+  }
+
+  const previouslyAwarded = playerDatabase.prepare(`
+    SELECT 1 FROM player_exp_awards WHERE user_id = ? AND game_id = ?
+    UNION
+    SELECT 1 FROM dungeon_stage_clears WHERE user_id = ? AND game_id = ?
+    LIMIT 1
+  `).get(request.playerId, gameId, request.playerId, gameId);
+  if (previouslyAwarded) {
+    return response.status(409).json({ error: 'This battle has already cleared a floor.' });
+  }
+
+  const encounter = getTowerEncounter(floor);
+  const bossReward = encounter.boss ? encounter.dungeon.rewardExp : 0;
+  const currentStats = playerDatabase.prepare(`
+    SELECT total_exp AS totalExp FROM player_stats WHERE user_id = ?
+  `).get(request.playerId);
+  if (!currentStats) {
+    return response.status(404).json({ error: 'Player stats could not be found.' });
+  }
+  const expAwarded = getTowerFloorExpReward(getLevel(currentStats.totalExp), bossReward);
+  const clearFloor = playerDatabase.transaction(() => {
+    playerDatabase.prepare(`
+      INSERT INTO player_exp_awards (user_id, game_id) VALUES (?, ?)
+    `).run(request.playerId, gameId);
+    playerDatabase.prepare(`
+      UPDATE player_stats
+      SET total_exp = total_exp + ?,
+        currency = currency + ?,
+        monsters_defeated = monsters_defeated + 1,
+        updated_at = datetime('now')
+      WHERE user_id = ?
+    `).run(expAwarded, encounter.boss ? currencyRewardPerDungeon : 0, request.playerId);
+    return playerStats(request.playerId);
+  });
+  const result = {
+    floor: floor + 1,
+    stats: clearFloor(),
+    expAwarded,
+  };
+  towerRuns.recordClear(request.params.id, request.playerId, floor, gameId, result);
+  response.json(result);
+});
+
 app.post('/api/dungeons', requirePlayer, (request, response) => {
   const suggestedLevel = request.body?.suggestedLevel;
   const dungeonKey = request.body?.dungeonKey ?? dungeons[0].id;
@@ -1030,7 +1127,10 @@ app.post('/api/dungeons/:id/clear-stage', requirePlayer, (request, response) => 
   }
   const previouslyUsedBattle = playerDatabase.prepare(`
     SELECT 1 FROM dungeon_stage_clears WHERE user_id = ? AND game_id = ?
-  `).get(request.playerId, gameId);
+    UNION
+    SELECT 1 FROM player_exp_awards WHERE user_id = ? AND game_id = ?
+    LIMIT 1
+  `).get(request.playerId, gameId, request.playerId, gameId);
   if (previouslyUsedBattle) {
     return response.status(409).json({ error: 'This battle has already cleared a dungeon stage.' });
   }

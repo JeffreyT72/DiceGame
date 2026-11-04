@@ -32,6 +32,7 @@ class BlackjackScene extends Phaser.Scene {
   }
 
   create() {
+    this.battleMode = this.registry.get('battleMode') ?? 'dungeon';
     this.setCharacter(this.registry.get('selectedCharacter') ?? 'adventurer');
     this.drawBattlefield();
     this.setTitle(this.registry.get('selectedTitle') ?? '');
@@ -151,19 +152,15 @@ class BlackjackScene extends Phaser.Scene {
     this.heroTitleLabel?.setText(title.toUpperCase());
   }
 
-  drawBattlefield() {
-    const backdrop = this.add.graphics();
-    backdrop.fillStyle(0x084632, 1);
-    backdrop.fillRoundedRect(24, 20, 812, 450, 20);
-    backdrop.lineStyle(2, 0x4c9470, 0.8);
-    backdrop.strokeRoundedRect(24, 20, 812, 450, 20);
-    backdrop.fillStyle(0x0a523d, 1);
-    backdrop.fillCircle(210, 290, 128);
-    backdrop.fillCircle(650, 290, 128);
-    backdrop.lineStyle(1, 0x2e7757, 0.8);
-    backdrop.strokeCircle(210, 290, 128);
-    backdrop.strokeCircle(650, 290, 128);
+  setBattleMode(mode) {
+    this.battleMode = mode;
+    this.registry.set('battleMode', mode);
+    if (this.battlefieldBackdrop) this.drawBattlefieldBackdrop();
+    if (this.healthLayer) this.renderBattlefield({ ...this.combatState, mode });
+  }
 
+  drawBattlefield() {
+    this.drawBattlefieldBackdrop();
     this.drawHero(210, 292);
     this.monsterSprite = this.drawMonster(650, 292);
 
@@ -185,6 +182,54 @@ class BlackjackScene extends Phaser.Scene {
       fontSize: '17px',
       fontStyle: 'bold',
     }).setOrigin(0.5);
+  }
+
+  drawBattlefieldBackdrop() {
+    const backdrop = this.battlefieldBackdrop ??= this.add.graphics();
+    backdrop.clear();
+    if (this.battleMode === 'tower') {
+      backdrop.fillStyle(0x21161c, 1);
+      backdrop.fillRoundedRect(24, 20, 812, 450, 20);
+      backdrop.lineStyle(2, 0xa9774c, 0.9);
+      backdrop.strokeRoundedRect(24, 20, 812, 450, 20);
+      backdrop.lineStyle(1, 0x604347, 0.8);
+      backdrop.strokeCircle(430, 218, 210);
+      backdrop.strokeCircle(430, 218, 170);
+      for (const x of [86, 774]) {
+        backdrop.fillStyle(0x3e2930, 1);
+        backdrop.fillRoundedRect(x - 20, 68, 40, 292, 8);
+        backdrop.lineStyle(2, 0x805544, 0.8);
+        backdrop.strokeRoundedRect(x - 20, 68, 40, 292, 8);
+        for (const y of [116, 188, 260, 332]) {
+          backdrop.lineBetween(x - 18, y, x + 18, y);
+        }
+      }
+      backdrop.fillStyle(0x35242b, 1);
+      backdrop.fillRoundedRect(54, 374, 752, 74, 16);
+      backdrop.lineStyle(2, 0x916345, 0.75);
+      backdrop.strokeRoundedRect(54, 374, 752, 74, 16);
+      backdrop.lineStyle(1, 0x65454a, 0.8);
+      backdrop.lineBetween(80, 398, 780, 398);
+      backdrop.lineBetween(80, 422, 780, 422);
+      for (const x of [210, 650]) {
+        backdrop.fillStyle(0x20161a, 0.9);
+        backdrop.fillEllipse(x, 358, 112, 22);
+        backdrop.lineStyle(2, 0xb77b4c, 0.6);
+        backdrop.strokeEllipse(x, 358, 112, 22);
+      }
+      return;
+    }
+
+    backdrop.fillStyle(0x084632, 1);
+    backdrop.fillRoundedRect(24, 20, 812, 450, 20);
+    backdrop.lineStyle(2, 0x4c9470, 0.8);
+    backdrop.strokeRoundedRect(24, 20, 812, 450, 20);
+    backdrop.fillStyle(0x0a523d, 1);
+    backdrop.fillCircle(210, 290, 128);
+    backdrop.fillCircle(650, 290, 128);
+    backdrop.lineStyle(1, 0x2e7757, 0.8);
+    backdrop.strokeCircle(210, 290, 128);
+    backdrop.strokeCircle(650, 290, 128);
   }
 
   drawHero(x, y) {
@@ -281,9 +326,9 @@ class BlackjackScene extends Phaser.Scene {
       0xd46d5e,
     );
     this.monsterSprite.setScale(combatState.boss ? 1.45 : 1.2);
-    this.stageText.setText(
-      `DUNGEON · STAGE ${combatState.stage ?? 1} / ${combatState.stageCount ?? 1}${combatState.boss ? ' · BOSS' : ''}`,
-    );
+    this.stageText.setText(combatState.mode === 'tower'
+      ? `TOWER · FLOOR ${combatState.stage ?? 1} · BLOCK ${Math.floor(((combatState.stage ?? 1) - 1) / 10) + 1}${combatState.boss ? ' · BOSS' : ''}`
+      : `DUNGEON · STAGE ${combatState.stage ?? 1} / ${combatState.stageCount ?? 1}${combatState.boss ? ' · BOSS' : ''}`);
     if (
       combatState.damageEvent
       && combatState.damageEvent.gameId !== this.lastDamageGameId
@@ -796,6 +841,7 @@ function createGame(
   selectedTableTheme = 'default',
   fpsLimit = 0,
   selectedTitle = '',
+  battleMode = 'dungeon',
 ) {
   const game = new Phaser.Game({
     type: Phaser.AUTO,
@@ -819,6 +865,7 @@ function createGame(
   game.registry.set('selectedCharacter', selectedCharacter);
   game.registry.set('selectedTableTheme', selectedTableTheme);
   game.registry.set('selectedTitle', selectedTitle);
+  game.registry.set('battleMode', battleMode);
   return game;
 }
 
@@ -829,6 +876,7 @@ export function createBlackjackGame(
   selectedTableTheme = 'default',
   fpsLimit = 0,
   selectedTitle = '',
+  battleMode = 'dungeon',
 ) {
   return {
     cards: createGame(cardParent, CardScene, selectedCharacter, undefined, selectedTableTheme, fpsLimit),
@@ -840,6 +888,7 @@ export function createBlackjackGame(
       selectedTableTheme,
       fpsLimit,
       selectedTitle,
+      battleMode,
     ),
   };
 }

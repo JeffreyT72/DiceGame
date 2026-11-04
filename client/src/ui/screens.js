@@ -4,6 +4,7 @@ export function createScreenController({
   onOpenLeaderboard,
   onOpenMultiplayer,
   onOpenDungeons,
+  onStartTower,
   onOpenCharacter,
   onOpenStore,
 }) {
@@ -61,6 +62,7 @@ export function createScreenController({
     show('dungeonCatalog');
     onOpenDungeons();
   });
+  document.querySelector('#tower-button').addEventListener('click', onStartTower);
   document.querySelector('#lab-button').addEventListener('click', () => {
     show('lab');
     onOpenLab();

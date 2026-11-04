@@ -5,6 +5,7 @@ Blackjack Survivors is a browser-based dungeon game where blackjack hands decide
 ## Features
 
 - Single-player dungeons with staged monster encounters, boss fights, loot, and persistent character progression.
+- Infinite Tower solo runs with a ten-floor climb, recurring bosses, and escalating monster stats.
 - Blackjack combat actions including hit, stand, double down, split, wagers, and character-stat bonuses.
 - Multiplayer rooms for up to four signed-in players, with shared encounters and turn-based rounds.
 - Character and table customization, a store, and leaderboards.
@@ -42,11 +43,13 @@ The app is served at <http://localhost:3000>.
 
 ## Gameplay and configuration
 
-Single-player dungeon definitions, including stage counts, level requirements, encounters, bosses, and experience rewards, live in [`shared/dungeon-config.js`](./shared/dungeon-config.js). Multiplayer dungeon definitions are separate in [`shared/dungeon-multiplayer-config.js`](./shared/dungeon-multiplayer-config.js). Combat rules and item definitions are in `shared/`; the server validates and resolves gameplay outcomes.
+Single-player dungeon definitions, including stage counts, level requirements, encounters, bosses, and experience rewards, live in [`shared/dungeon-config.js`](./shared/dungeon-config.js). Tower encounters, scaling, and floor rewards are in [`shared/tower-config.js`](./shared/tower-config.js). Multiplayer dungeon definitions are separate in [`shared/dungeon-multiplayer-config.js`](./shared/dungeon-multiplayer-config.js). Combat rules and item definitions are in `shared/`; the server validates and resolves gameplay outcomes.
 
 Each dungeon run starts at stage 1 and is temporary. Clearing the final boss awards the configured dungeon experience; a defeated character loses the run. Character level-ups grant a stat point for strength, agility, constitution, or luck. Run items do not persist after the run ends.
 
 Multiplayer rooms support two to four signed-in players. The host starts the dungeon, the party shares monster health and each blackjack round's dealer hand, and players take turns. Room membership and active progress are held in server memory and are lost if the server restarts. WebSocket connections use the signed-in session and require a same-host browser origin.
+
+Infinite Tower reuses the dungeon monster roster and battle scene. A boss appears every tenth floor; monster health, attack, and defense increase by 20% each ten-floor block. The ten-floor progress track resets after each boss while the overall floor count continues. Tower progress is temporary and is not saved for resuming; cleared floors award EXP and loot, with each floor's EXP capped at five times the EXP required for the player's next level.
 
 ## Accounts and data
 

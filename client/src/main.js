@@ -20,6 +20,7 @@ import {
   getDungeonMonster,
   getDungeonStageCount,
 } from '../../shared/dungeon-config.js';
+import { getTowerEncounter, getTowerFloorInBlock } from '../../shared/tower-config.js';
 import { tableThemes } from '../../shared/table-themes.js';
 import { getTitle, titles } from '../../shared/titles.js';
 
@@ -254,6 +255,25 @@ function initialRunState(dungeon, run) {
   };
 }
 
+function initialTowerRunState(run) {
+  const encounter = getTowerEncounter(run.floor);
+  return {
+    dungeonId: run.id,
+    mode: 'tower',
+    dungeon: { name: 'Infinite Tower' },
+    suggestedLevel: currentStats.level ?? 1,
+    stage: run.floor,
+    playerHp: baseMaximumHealth(),
+    monsterHp: encounter.monster.hp,
+    lastResolvedGameId: null,
+    lastRoundMessage: '',
+    lastExpAwarded: 0,
+    phase: 'active',
+    pendingStageClear: null,
+    items: [],
+  };
+}
+
 function applyTotalExp(totalExp) {
   let level = 1;
   let remainingExp = totalExp;
@@ -404,11 +424,19 @@ async function updateTitle(title, action) {
 }
 
 function currentMonster() {
-  return runState ? getDungeonMonster(runState.dungeon, runState.stage) : null;
+  return runState?.mode === 'tower'
+    ? getTowerEncounter(runState.stage)?.monster
+    : runState
+      ? getDungeonMonster(runState.dungeon, runState.stage)
+      : null;
 }
 
 function currentStageCount() {
-  return runState ? getDungeonStageCount(runState.dungeon) : getDungeonStageCount(dungeons[0]);
+  return runState?.mode === 'tower'
+    ? 10
+    : runState
+      ? getDungeonStageCount(runState.dungeon)
+      : getDungeonStageCount(dungeons[0]);
 }
 
 function maximumMonsterHealth() {
@@ -421,8 +449,11 @@ function renderBattlefield() {
   }
   const monster = currentMonster();
   const stageCount = currentStageCount();
-  const boss = Boolean(runState && runState.stage === stageCount);
+  const boss = runState?.mode === 'tower'
+    ? Boolean(getTowerEncounter(runState.stage)?.boss)
+    : Boolean(runState && runState.stage === stageCount);
   game.battlefield.scene.getScene('blackjack')?.renderBattlefield({
+    mode: runState?.mode ?? 'dungeon',
     playerHp: runState?.playerHp ?? maximumHealth(),
     playerMaxHp: maximumHealth(),
     monsterHp: runState?.monsterHp ?? monster?.hp ?? 0,
@@ -435,7 +466,7 @@ function renderBattlefield() {
   });
   battlefield.setAttribute(
     'aria-label',
-    `Stage ${runState?.stage ?? 1} of ${stageCount}${boss ? ', boss' : ''}. Hero health ${Math.round(runState?.playerHp ?? maximumHealth())} of ${maximumHealth()}. ${monster?.name ?? 'Monster'} health ${Math.round(runState?.monsterHp ?? monster?.hp ?? 0)}.`,
+    `${runState?.mode === 'tower' ? `Tower floor ${runState.stage}` : `Stage ${runState?.stage ?? 1} of ${stageCount}`}${boss ? ', boss' : ''}. Hero health ${Math.round(runState?.playerHp ?? maximumHealth())} of ${maximumHealth()}. ${monster?.name ?? 'Monster'} health ${Math.round(runState?.monsterHp ?? monster?.hp ?? 0)}.`,
   );
 }
 
@@ -450,11 +481,13 @@ function render(gameState) {
     syncStageClear,
     onDungeonSessionRemovalError: (error, failedRun) => {
       console.error(error);
-      status.textContent = `You were defeated on stage ${failedRun.stage}. Could not remove the dungeon session: ${error.message}`;
+      const location = failedRun.mode === 'tower' ? `floor ${failedRun.stage}` : `stage ${failedRun.stage}`;
+      status.textContent = `You were defeated on ${location}. Could not remove the run: ${error.message}`;
     },
     onStageClearError: (error, failedRun) => {
       console.error(error);
-      status.textContent = `Could not finish stage ${failedRun.stage}: ${error.message}. Retry the stage clear.`;
+      const location = failedRun.mode === 'tower' ? `floor ${failedRun.stage}` : `stage ${failedRun.stage}`;
+      status.textContent = `Could not finish ${location}: ${error.message}. Retry the clear.`;
       renderControls();
     },
   });
@@ -465,14 +498,17 @@ function render(gameState) {
   renderProgression();
   renderControls();
 
-  if (runState?.phase === 'failed') {
+  if (runState?.phase === 'failed' && runState.mode === 'tower') {
+    status.textContent = `Your tower run ended on floor ${runState.stage}.`;
+  } else if (runState?.phase === 'failed') {
     status.textContent = `You were defeated in ${runState.dungeon.name} on stage ${runState.stage}. No EXP is awarded; start a new dungeon to try again.`;
   } else if (runState?.phase === 'complete') {
     status.textContent = `Dungeon cleared! You earned ${runState.lastExpAwarded} EXP.`;
   } else if (runState?.phase === 'loot') {
-    status.textContent = `Stage ${runState.stage} cleared! You earned ${runState.lastExpAwarded} EXP. Choose one item to continue.`;
+    const floorName = runState.mode === 'tower' ? `Floor ${runState.stage}` : `Stage ${runState.stage}`;
+    status.textContent = `${floorName} cleared! You earned ${runState.lastExpAwarded} EXP. Choose one item to continue.`;
   } else if (runState?.phase === 'clearing') {
-    status.textContent = `Stage ${runState.stage} defeated. Resolving the stage…`;
+    status.textContent = `${runState.mode === 'tower' ? 'Floor' : 'Stage'} ${runState.stage} defeated. Resolving the clear…`;
   } else {
     const roundMessage = gameState.status === 'complete'
       && gameState.id === runState?.lastResolvedGameId
@@ -532,51 +568,81 @@ function renderControls() {
     dungeonStageCount.textContent = 'No active run';
     dungeonTimeline.hidden = true;
     dungeonTimeline.replaceChildren();
+    dungeonTimeline.closest('.dungeon-progress-panel').classList.remove('tower-progress-panel');
+    battlefield.classList.remove('tower-battlefield');
+    document.querySelector('.dungeon-progress-kicker').textContent = 'Expedition path';
+    document.querySelector('.dungeon-progress-heading h2').textContent = 'Stage progression';
   } else {
+    const tower = runState.mode === 'tower';
     const stageCount = currentStageCount();
-    const label = runState.stage === stageCount ? 'Boss' : 'Mob';
+    const blockFloor = tower ? getTowerFloorInBlock(runState.stage) : runState.stage;
+    const blockStart = tower ? runState.stage - blockFloor + 1 : 1;
+    const currentEncounter = tower ? getTowerEncounter(runState.stage) : null;
+    const isBoss = tower ? currentEncounter.boss : runState.stage === stageCount;
+    const label = isBoss ? 'Boss' : 'Mob';
     dungeonProgress.textContent = runState.phase === 'complete'
       ? `${runState.dungeon.name} cleared!`
       : runState.phase === 'failed'
-        ? `${runState.dungeon.name} · Defeated on stage ${runState.stage} of ${stageCount}`
-        : `${runState.dungeon.name} · Stage ${runState.stage} of ${stageCount} · ${label} · ${runState.items.length} item${runState.items.length === 1 ? '' : 's'} collected`;
+        ? tower
+          ? `${runState.dungeon.name} · Run ended on floor ${runState.stage}`
+          : `${runState.dungeon.name} · Defeated on stage ${runState.stage} of ${stageCount}`
+        : tower
+          ? `${runState.dungeon.name} · Floor ${runState.stage} · ${label} · Cycle ${Math.floor((runState.stage - 1) / 10) + 1} · ${runState.items.length} item${runState.items.length === 1 ? '' : 's'} collected`
+          : `${runState.dungeon.name} · Stage ${runState.stage} of ${stageCount} · ${label} · ${runState.items.length} item${runState.items.length === 1 ? '' : 's'} collected`;
     document.querySelector('#active-dungeon-name').textContent = runState.dungeon.name;
-    dungeonStageCount.textContent = runState.phase === 'complete'
+    dungeonStageCount.textContent = tower
+      ? `Floor ${runState.stage} · Cycle ${Math.floor((runState.stage - 1) / 10) + 1}`
+      : runState.phase === 'complete'
       ? `${stageCount} / ${stageCount} cleared`
       : runState.phase === 'failed'
         ? `${runState.stage} / ${stageCount} · Defeated`
         : `${runState.stage} / ${stageCount} stages`;
+    dungeonTimeline.closest('.dungeon-progress-panel').classList.toggle('tower-progress-panel', tower);
+    battlefield.classList.toggle('tower-battlefield', tower);
+    document.querySelector('.dungeon-progress-kicker').textContent = tower ? 'Tower climb' : 'Expedition path';
+    document.querySelector('.dungeon-progress-heading h2').textContent = tower
+      ? 'Floor progression'
+      : 'Stage progression';
     dungeonTimeline.hidden = false;
     const stages = document.createDocumentFragment();
     for (let stage = 1; stage <= stageCount; stage += 1) {
-      const monster = getDungeonMonster(runState.dungeon, stage);
+      const floor = tower ? blockStart + stage - 1 : stage;
+      const monster = tower
+        ? getTowerEncounter(floor)?.monster
+        : getDungeonMonster(runState.dungeon, stage);
+      const current = tower ? stage === blockFloor : stage === runState.stage;
+      const completed = tower ? stage < blockFloor : stage < runState.stage;
       const stageState = runState.phase === 'complete'
-        || stage < runState.stage
-        || (stage === runState.stage && runState.phase === 'loot')
+        || completed
+        || (current && runState.phase === 'loot')
         ? 'completed'
-        : stage === runState.stage && runState.phase === 'failed'
+        : current && runState.phase === 'failed'
           ? 'defeated'
-          : stage === runState.stage && runState.phase === 'clearing'
+          : current && runState.phase === 'clearing'
             ? 'clearing'
-            : stage === runState.stage
+            : current
               ? 'current'
               : 'upcoming';
       const entry = document.createElement('li');
-      entry.className = `dungeon-stage dungeon-stage-${stageState}`;
+      entry.className = `dungeon-stage dungeon-stage-${stageState}${tower ? ' tower-stage' : ''}`;
       const stageMarker = document.createElement('span');
       stageMarker.className = 'dungeon-stage-marker';
       stageMarker.textContent = stageState === 'completed' ? '✓' : String(stage);
       const stageLabel = document.createElement('span');
       stageLabel.className = 'dungeon-stage-label';
-      stageLabel.textContent = stage === stageCount ? 'Boss' : `Stage ${stage}`;
+      stageLabel.textContent = tower
+        ? stage === stageCount ? 'Boss' : `Floor ${stage}`
+        : stage === stageCount ? 'Boss' : `Stage ${stage}`;
       const encounter = document.createElement('span');
       encounter.className = 'dungeon-stage-encounter';
       encounter.textContent = monster?.name ?? 'Encounter';
       entry.setAttribute(
         'aria-label',
-        `Stage ${stage} of ${stageCount}: ${monster?.name ?? 'Encounter'}, ${stageState}`,
+        tower
+          ? `Floor ${floor}: ${monster?.name ?? 'Encounter'}${stage === stageCount ? ', boss' : ''}, ${stageState}`
+          : `Stage ${stage} of ${stageCount}: ${monster?.name ?? 'Encounter'}, ${stageState}`,
       );
-      if (stageState === 'current' || stageState === 'clearing' || stageState === 'defeated') {
+      if (current && ['current', 'clearing', 'defeated'].includes(stageState)) {
         entry.setAttribute('aria-current', 'step');
       }
       entry.append(stageMarker, stageLabel, encounter);
@@ -632,10 +698,14 @@ async function syncStageClear() {
   renderControls();
   const { stage, gameId } = runState.pendingStageClear;
   try {
-    const result = await request(`/api/dungeons/${encodeURIComponent(runState.dungeonId)}/clear-stage`, {
+    const tower = runState.mode === 'tower';
+    const endpoint = tower
+      ? `/api/tower-runs/${encodeURIComponent(runState.dungeonId)}/clear-floor`
+      : `/api/dungeons/${encodeURIComponent(runState.dungeonId)}/clear-stage`;
+    const result = await request(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ stage, gameId }),
+      body: JSON.stringify(tower ? { floor: stage, gameId } : { stage, gameId }),
     });
     if (result.stats) {
       currentStats = result.stats;
@@ -643,11 +713,11 @@ async function syncStageClear() {
       renderCurrency();
     }
     runState.lastExpAwarded = result.expAwarded;
-    if (stage === currentStageCount()) {
+    const finalStage = !tower && stage === currentStageCount();
+    if (finalStage) {
       await removeDungeonSession(runState.dungeonId, currentGame?.id);
     }
     runState.pendingStageClear = null;
-    const finalStage = stage === currentStageCount();
     runState.phase = finalStage ? 'complete' : 'loot';
     runState.lootChoices = finalStage ? [] : chooseItemOptions();
     if (finalStage) {
@@ -658,7 +728,8 @@ async function syncStageClear() {
     if (finalStage) {
       status.textContent = `Dungeon cleared! You earned ${result.expAwarded} EXP.`;
     } else {
-      status.textContent = `Stage ${stage} cleared! You earned ${result.expAwarded} EXP. Choose one item to continue.`;
+      const floorName = tower ? `Floor ${stage}` : `Stage ${stage}`;
+      status.textContent = `${floorName} cleared! You earned ${result.expAwarded} EXP. Choose one item to continue.`;
     }
   } finally {
     resolvingStage = false;
@@ -667,7 +738,10 @@ async function syncStageClear() {
 }
 
 async function removeDungeonSession(dungeonId, gameId) {
-  await request(`/api/dungeons/${encodeURIComponent(dungeonId)}`, {
+  const endpoint = runState?.mode === 'tower'
+    ? `/api/tower-runs/${encodeURIComponent(dungeonId)}`
+    : `/api/dungeons/${encodeURIComponent(dungeonId)}`;
+  await request(endpoint, {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ gameId }),
@@ -693,6 +767,22 @@ async function beginDungeon(selectedDungeon) {
   } catch (error) {
     console.error(error);
     status.textContent = `Could not enter the dungeon: ${error.message}`;
+  }
+}
+
+async function beginTower() {
+  renderControls();
+  status.textContent = 'Opening the Infinite Tower…';
+  try {
+    const { towerRun } = await request('/api/tower-runs', { method: 'POST' });
+    runState = initialTowerRunState(towerRun);
+    game?.battlefield.scene.getScene('blackjack')?.setBattleMode('tower');
+    renderBattlefield();
+    renderControls();
+    status.textContent = 'Choose an HP wager or skip to start your hand.';
+  } catch (error) {
+    console.error(error);
+    status.textContent = `Could not enter the tower: ${error.message}`;
   }
 }
 
@@ -762,9 +852,33 @@ async function startGame(selectedDungeon) {
       fpsLimit,
       getTitle(Number(currentStats.title))?.name ?? '',
     );
+    game.battlefield.scene.getScene('blackjack')?.setBattleMode('dungeon');
     await beginDungeon(selectedDungeon);
   } finally {
     startGameButton.disabled = false;
+    quitButton.disabled = false;
+  }
+}
+
+async function startTowerGame() {
+  const towerButton = document.querySelector('#tower-button');
+  const quitButton = document.querySelector('#dungeon-screen [data-back-to-lobby]');
+  towerButton.disabled = true;
+  quitButton.disabled = true;
+  try {
+    screens.show('dungeon');
+    game ??= createBlackjackGame(
+      'game',
+      'battlefield-game',
+      selectedCharacter,
+      currentStats.tableTheme,
+      fpsLimit,
+      getTitle(Number(currentStats.title))?.name ?? '',
+    );
+    game.battlefield.scene.getScene('blackjack')?.setBattleMode('tower');
+    await beginTower();
+  } finally {
+    towerButton.disabled = false;
     quitButton.disabled = false;
   }
 }
@@ -913,6 +1027,7 @@ const screens = createScreenController({
     startGame,
     currentStats.level ?? 1,
   ),
+  onStartTower: startTowerGame,
   onOpenCharacter: () => {
     characterSelect.value = selectedCharacter;
     paperDollCustomizer.render(selectedCharacter);
@@ -948,12 +1063,13 @@ auth.checkSession();
 
 window.addEventListener('pagehide', () => {
   if (!runState?.dungeonId) return;
-  fetch(`/api/dungeons/${encodeURIComponent(runState.dungeonId)}`, {
+  const endpoint = runState.mode === 'tower'
+    ? `/api/tower-runs/${encodeURIComponent(runState.dungeonId)}`
+    : `/api/dungeons/${encodeURIComponent(runState.dungeonId)}`;
+  request(endpoint, {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ gameId: currentGame?.id }),
     keepalive: true,
-  }).then((response) => {
-    if (!response.ok) console.error(`Could not remove the dungeon session (${response.status}).`);
   }).catch((error) => console.error(error));
 });
