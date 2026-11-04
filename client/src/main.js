@@ -523,6 +523,13 @@ function renderControls() {
   const handInProgress = currentGame?.status === 'playing';
   const awaitingWager = active && !handInProgress && !startingHand;
   const stageComplete = runState?.phase === 'loot';
+  const cardScene = game?.cards.scene.getScene('blackjack');
+  if (awaitingWager) cardScene?.clearHand();
+  cardScene?.setTableInstruction(awaitingWager
+    ? 'PLACE YOUR WAGER'
+    : stageComplete
+      ? 'CHOOSE AN ITEM TO CONTINUE'
+      : '');
   const canDoubleDown = currentGame?.playerHand.length === 2 && !currentGame?.doubledDown;
   const firstCard = currentGame?.playerHand[0];
   const secondCard = currentGame?.playerHand[1];

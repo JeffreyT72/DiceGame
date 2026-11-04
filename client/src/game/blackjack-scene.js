@@ -522,6 +522,7 @@ class CardScene extends BlackjackScene {
   constructor() {
     super();
     this.selectedTableTheme = 'default';
+    this.tableInstructionText = '';
   }
 
   preload() {
@@ -541,6 +542,16 @@ class CardScene extends BlackjackScene {
       fontSize: '15px',
       fontStyle: 'bold',
     }).setOrigin(0.5));
+    this.tableInstruction = this.add.container(430, 245).setVisible(false);
+    this.tableInstruction.add(this.add.rectangle(0, 0, 420, 48, 0x173328, 0.96)
+      .setStrokeStyle(2, 0xb4d282));
+    this.tableInstruction.add(this.add.text(0, 0, '', {
+      color: '#e8f6c7',
+      fontFamily: 'Arial, sans-serif',
+      fontSize: '17px',
+      fontStyle: 'bold',
+    }).setOrigin(0.5));
+    this.setTableInstruction(this.tableInstructionText);
     if (this.pendingGame) {
       this.renderGame(this.pendingGame);
       this.pendingGame = null;
@@ -568,6 +579,13 @@ class CardScene extends BlackjackScene {
   renderGame(game) {
     super.renderGame(game);
     this.updateHitCounter(game);
+  }
+
+  setTableInstruction(instruction) {
+    this.tableInstructionText = instruction;
+    if (!this.tableInstruction) return;
+    this.tableInstruction.getAt(1).setText(instruction);
+    this.tableInstruction.setVisible(Boolean(instruction));
   }
 
   updateHitCounter(game) {

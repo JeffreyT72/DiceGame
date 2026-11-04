@@ -128,10 +128,45 @@
         </section>
 
         <section id="dungeon-screen" class="screen-panel" aria-label="Battle run" hidden>
-          <button class="button button-quiet screen-back" type="button" data-back-to-lobby>Back to game menu</button>
+          <div class="dungeon-topbar">
+            <button class="button button-quiet screen-back" type="button" data-back-to-lobby>Back to game menu</button>
+
+            <section class="dungeon-controls" aria-label="Run details">
+              <div class="dungeon-title-group">
+                <span class="dungeon-controls-kicker">Expedition</span>
+                <h2 id="active-dungeon-name">Choose a dungeon</h2>
+              </div>
+              <div class="dungeon-levels">
+                <p class="dungeon-level">
+                  <span>Suggested level</span>
+                  <strong id="suggested-level">Level 1</strong>
+                </p>
+                <p class="battlefield-player-level dungeon-level">
+                  <span>Player level</span>
+                  <strong id="dungeon-player-level">Level 1</strong>
+                </p>
+              </div>
+            </section>
+          </div>
+
+          <section class="dungeon-progress-panel" aria-label="Run progression">
+            <div class="dungeon-progress-heading">
+              <div>
+                <span class="dungeon-progress-kicker">Expedition path</span>
+                <h2>Stage progression</h2>
+              </div>
+              <span id="dungeon-stage-count" class="dungeon-stage-count">No active run</span>
+            </div>
+            <p id="dungeon-progress" class="dungeon-progress">Your next run is ready when you are.</p>
+            <ol id="dungeon-timeline" class="dungeon-timeline" aria-label="Dungeon stages" hidden></ol>
+          </section>
 
           <div class="dungeon-layout">
-            <section class="play-card" aria-label="Blackjack round">
+            <section class="play-card" aria-labelledby="blackjack-heading">
+              <div class="dungeon-card-heading">
+                <span class="dungeon-card-kicker">Combat</span>
+                <h2 id="blackjack-heading">Blackjack</h2>
+              </div>
               <section id="table" class="table" aria-label="Blackjack card table">
                 <div id="game"></div>
               </section>
@@ -157,27 +192,10 @@
             </section>
 
             <aside class="battlefield-card" aria-label="Dungeon battlefield">
-              <section class="dungeon-controls" aria-label="Run details">
-                <div>
-                  <span id="active-dungeon-name">Choose a dungeon</span>
-                  <span>Suggested character level</span>
-                  <strong id="suggested-level">Level 1</strong>
-                </div>
-                <p class="battlefield-player-level">Player level <strong id="dungeon-player-level">Level 1</strong></p>
-              </section>
-
-              <section class="dungeon-progress-panel" aria-label="Run progression">
-                <div class="dungeon-progress-heading">
-                  <div>
-                    <span class="dungeon-progress-kicker">Expedition path</span>
-                    <h2>Stage progression</h2>
-                  </div>
-                  <span id="dungeon-stage-count" class="dungeon-stage-count">No active run</span>
-                </div>
-                <p id="dungeon-progress" class="dungeon-progress">Your next run is ready when you are.</p>
-                <ol id="dungeon-timeline" class="dungeon-timeline" aria-label="Dungeon stages" hidden></ol>
-              </section>
-
+              <div class="dungeon-card-heading">
+                <span class="dungeon-card-kicker">Current encounter</span>
+                <h2>Battlefield</h2>
+              </div>
               <section id="battlefield" class="table battlefield-table" aria-label="Hero and monster battlefield">
                 <div id="battlefield-game"></div>
               </section>
