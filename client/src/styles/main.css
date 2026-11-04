@@ -38,7 +38,7 @@ body {
   padding: 0;
   background:
     linear-gradient(180deg, rgb(9 7 13 / 36%) 0, var(--color-background) 700px),
-    url("../assets/backgrounds/ace2e259-d07f-4733-80f7-30ad70b3194e.jpg") center top / min(100%, 1440px) auto no-repeat,
+    url("../assets/backgrounds/ace2e259-d07f-4733-80f7-30ad70b3194e.jpg") center top / cover no-repeat,
     radial-gradient(ellipse at 72% 45%, var(--color-magenta-glow) 0, transparent 43%),
     radial-gradient(ellipse at 12% 18%, var(--color-violet-glow) 0, transparent 36%),
     linear-gradient(135deg, #100910, #140c19 52%, #09070d);
