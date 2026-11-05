@@ -222,6 +222,7 @@ export function createMultiplayerController({ getFpsLimit, getShowHandCount, onS
       const secondCard = me.hand.playerHand[1];
       split.disabled = actionPending
         || Boolean(me.hand.playerHands)
+        || me.hand.playerHand.length !== 2
         || !firstCard
         || !secondCard
         || firstCard.rank !== secondCard.rank

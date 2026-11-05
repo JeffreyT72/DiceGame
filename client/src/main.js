@@ -434,6 +434,7 @@ function renderControls() {
   const canSplit = Boolean(
     firstCard
     && secondCard
+    && currentGame?.playerHand.length === 2
     && !currentGame?.playerHands
     && firstCard.rank === secondCard.rank
     && splitStake < (runState?.playerHp ?? 0),

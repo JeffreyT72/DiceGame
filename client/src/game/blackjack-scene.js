@@ -317,7 +317,7 @@ class BlackjackScene extends Phaser.Scene {
       player: game.playerHand.length,
       splitPlayers: game.playerHands?.map(({ cards }) => cards.length) ?? [],
     };
-    this.addHand('Dealer', game.dealerHand, game.dealerScore, 150, 98, dealerDrawStart);
+    this.addHand('Dealer', game.dealerHand, game.dealerScore, 150, dealerDrawStart);
     if (game.playerHands?.length) {
       game.playerHands.forEach((hand, index) => {
         const active = game.status === 'playing' && index === game.activeHandIndex;
@@ -328,15 +328,14 @@ class BlackjackScene extends Phaser.Scene {
           `Hand ${index + 1}${active ? ' · PLAYING' : result}`,
           hand.cards,
           hand.score,
-          340,
-          286,
+          372,
           splitDrawStarts[index] ?? 0,
           index === 0 ? 240 : 620,
           390,
         );
       });
     } else {
-      this.addHand('You', game.playerHand, game.playerScore, 340, 286, playerDrawStart);
+      this.addHand('You', game.playerHand, game.playerScore, 372, playerDrawStart);
     }
   }
 
@@ -479,40 +478,66 @@ class BlackjackScene extends Phaser.Scene {
     }
   }
 
-  addHand(label, cards, score, cardY, labelY, drawStartIndex, centerX = 430, maxWidth = 790) {
+  addHand(label, cards, score, cardY, drawStartIndex, centerX = 430, maxWidth = 790) {
     const handCards = Array.isArray(cards) ? cards : [];
     if (handCards.length === 0) {
       return;
     }
-
-    const scoreText = this.showHandCount && score !== null ? `  ·  ${score}` : '';
-    this.handLayer.add(this.add.text(centerX - maxWidth / 2, labelY, `${label}${scoreText}`, {
-      color: '#e9f5ed',
-      fontFamily: 'Arial, sans-serif',
-      fontSize: '18px',
-      fontStyle: 'bold',
-    }));
 
     const gap = 9;
     const maxCardWidth = 78;
     const cardWidth = clamp(Math.min(maxCardWidth, (maxWidth - gap * Math.max(0, handCards.length - 1)) / handCards.length), 1, maxCardWidth);
     const cardHeight = cardWidth * 1.42;
     const startX = centerX - ((handCards.length - 1) * (cardWidth + gap)) / 2;
+    const scoreText = this.showHandCount && score !== null ? `  ·  ${score}` : '';
+    const active = label.includes('PLAYING');
+    const handLabel = this.add.text(0, 0, `${label}${scoreText}`, {
+      color: '#e9f5ed',
+      fontFamily: 'Arial, sans-serif',
+      fontSize: '18px',
+      fontStyle: 'bold',
+    }).setOrigin(0.5);
+    const labelBadge = this.add.container(centerX, cardY - cardHeight / 2 - 32);
+    labelBadge.add(this.add.graphics()
+      .fillStyle(active ? 0x4b4824 : 0x173328, 0.96)
+      .fillRoundedRect(-handLabel.width / 2 - 14, -15, handLabel.width + 28, 30, 12)
+      .lineStyle(2, active ? 0xf0d778 : 0x72906a, 0.9)
+      .strokeRoundedRect(-handLabel.width / 2 - 14, -15, handLabel.width + 28, 30, 12));
+    labelBadge.add(handLabel);
+    this.handLayer.add(labelBadge);
 
     handCards.forEach((card, index) => {
       const x = startX + index * (cardWidth + gap);
       const container = this.add.container(x, cardY);
-      const background = this.add.rectangle(0, 0, cardWidth, cardHeight, card.hidden ? 0x245780 : 0xfffcf4)
-        .setStrokeStyle(2, card.hidden ? 0x87b6d5 : 0xd9d4c9);
+      container.add(this.add.rectangle(3, 5, cardWidth, cardHeight, 0x000000, 0.38));
+      const background = this.add.graphics()
+        .fillStyle(card.hidden ? 0x245780 : 0xfffcf4, 1)
+        .fillRoundedRect(-cardWidth / 2, -cardHeight / 2, cardWidth, cardHeight, 8)
+        .lineStyle(2, card.hidden ? 0xe2c779 : 0xc3a866, 1)
+        .strokeRoundedRect(-cardWidth / 2, -cardHeight / 2, cardWidth, cardHeight, 8)
+        .lineStyle(1, card.hidden ? 0x87b6d5 : 0xe6dcc4, 0.9)
+        .strokeRoundedRect(-cardWidth / 2 + 4, -cardHeight / 2 + 4, cardWidth - 8, cardHeight - 8, 6);
       container.add(background);
 
       if (card.hidden) {
-        container.add(this.add.rectangle(0, 0, cardWidth - 10, cardHeight - 10, 0x245780)
-          .setStrokeStyle(1, 0x87b6d5));
-        container.add(this.add.text(0, 0, '★', {
-          color: '#e4f1fa',
+        const pattern = this.add.graphics().lineStyle(1, 0x9ac4d6, 0.65);
+        pattern.strokePoints([
+          { x: 0, y: -cardHeight * 0.28 },
+          { x: cardWidth * 0.28, y: 0 },
+          { x: 0, y: cardHeight * 0.28 },
+          { x: -cardWidth * 0.28, y: 0 },
+        ], true);
+        pattern.strokePoints([
+          { x: 0, y: -cardHeight * 0.14 },
+          { x: cardWidth * 0.14, y: 0 },
+          { x: 0, y: cardHeight * 0.14 },
+          { x: -cardWidth * 0.14, y: 0 },
+        ], true);
+        container.add(pattern);
+        container.add(this.add.text(0, 0, '✦', {
+          color: '#f0d778',
           fontFamily: 'Arial, sans-serif',
-          fontSize: `${Math.max(20, cardWidth * 0.38)}px`,
+          fontSize: `${Math.max(24, cardWidth * 0.42)}px`,
         }).setOrigin(0.5));
       } else {
         const color = getCardSuitColor(card.suit);
@@ -527,14 +552,20 @@ class BlackjackScene extends Phaser.Scene {
           fontFamily: 'Arial, sans-serif',
           fontSize: `${Math.max(26, cardWidth * 0.47)}px`,
         }).setOrigin(0.5));
+        container.add(this.add.text(cardWidth / 2 - 12, cardHeight / 2 - 14, card.rank, {
+          color,
+          fontFamily: 'Arial, sans-serif',
+          fontSize: `${Math.max(14, cardWidth * 0.24)}px`,
+          fontStyle: 'bold',
+        }).setOrigin(0.5).setRotation(Math.PI));
       }
 
       this.handLayer.add(container);
       if (index >= drawStartIndex) {
         container.setPosition(430, 245)
           .setAlpha(0)
-          .setScale(0.7)
-          .setRotation(-0.12);
+          .setScale(0.65)
+          .setRotation(index % 2 === 0 ? -0.2 : 0.2);
         this.tweens.add({
           targets: container,
           x,
@@ -566,10 +597,20 @@ class CardScene extends BlackjackScene {
     this.selectedTableTheme = this.registry.get('selectedTableTheme') ?? 'default';
     this.showHandCount = this.registry.get('showHandCount') ?? true;
     this.drawCardBackdrop();
+    this.add.text(76, 245, '♠', {
+      color: '#f0d778',
+      fontFamily: 'Arial, sans-serif',
+      fontSize: '42px',
+    }).setOrigin(0.5).setAlpha(0.28);
+    this.add.text(784, 245, '♥', {
+      color: '#f0d778',
+      fontFamily: 'Arial, sans-serif',
+      fontSize: '42px',
+    }).setOrigin(0.5).setAlpha(0.28);
     this.handLayer = this.add.container(0, 0);
-    this.hitCounter = this.add.container(430, 245).setVisible(false);
-    this.hitCounter.add(this.add.rectangle(0, 0, 250, 38, 0x173328, 0.96)
-      .setStrokeStyle(2, 0xb4d282));
+    this.hitCounter = this.add.container(150, 43).setVisible(false);
+    this.hitCounter.add(this.add.rectangle(0, 0, 250, 30, 0x342b1d, 0.98)
+      .setStrokeStyle(2, 0xf0d778));
     this.hitCounter.add(this.add.text(0, 0, '', {
       color: '#e8f6c7',
       fontFamily: 'Arial, sans-serif',
@@ -602,12 +643,21 @@ class CardScene extends BlackjackScene {
     const theme = getTableTheme(this.selectedTableTheme) ?? getTableTheme('default');
     this.backdrop ??= this.add.graphics();
     this.backdrop.clear();
+    this.backdrop.fillStyle(0x211810, 1);
+    this.backdrop.fillRoundedRect(14, 12, 832, 466, 26);
+    this.backdrop.lineStyle(3, 0xe1bd68, 0.95);
+    this.backdrop.strokeRoundedRect(14, 12, 832, 466, 26);
+    this.backdrop.fillStyle(0x100f16, 1);
+    this.backdrop.fillRoundedRect(23, 21, 814, 448, 20);
     this.backdrop.fillStyle(Number.parseInt(theme.color, 16), 1);
-    this.backdrop.fillRoundedRect(24, 20, 812, 450, 20);
-    this.backdrop.lineStyle(2, 0x4c9470, 0.8);
-    this.backdrop.strokeRoundedRect(24, 20, 812, 450, 20);
-    this.backdrop.lineStyle(1, 0x2e7757, 0.8);
+    this.backdrop.fillRoundedRect(29, 27, 802, 436, 18);
+    this.backdrop.lineStyle(1, 0xe6cb83, 0.55);
+    this.backdrop.strokeRoundedRect(38, 36, 784, 418, 14);
+    this.backdrop.lineStyle(1, 0xe6cb83, 0.38);
     this.backdrop.lineBetween(42, 245, 818, 245);
+    this.backdrop.fillStyle(0xe6cb83, 0.68);
+    this.backdrop.fillCircle(42, 245, 4);
+    this.backdrop.fillCircle(818, 245, 4);
   }
 
   renderGame(game) {
@@ -616,10 +666,24 @@ class CardScene extends BlackjackScene {
   }
 
   setTableInstruction(instruction) {
+    const changed = instruction !== this.tableInstructionText;
     this.tableInstructionText = instruction;
     if (!this.tableInstruction) return;
     this.tableInstruction.getAt(1).setText(instruction);
+    this.tweens.killTweensOf(this.tableInstruction);
     this.tableInstruction.setVisible(Boolean(instruction));
+    if (changed && instruction) {
+      this.tableInstruction.setAlpha(0).setScale(0.88);
+      this.tweens.add({
+        targets: this.tableInstruction,
+        alpha: 1,
+        scale: 1,
+        duration: 300,
+        ease: 'Back.Out',
+      });
+    } else {
+      this.tableInstruction.setAlpha(1).setScale(1);
+    }
   }
 
   updateHitCounter(game) {
