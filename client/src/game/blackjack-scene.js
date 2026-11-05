@@ -406,8 +406,11 @@ class BlackjackScene extends Phaser.Scene {
     });
     if (!event.dodged) {
       if (incoming) {
-        targetSprite.setTintFill(0xff6b61);
-        this.time.delayedCall(270, () => targetSprite.clearTint());
+        const tintTargets = [...this.paperDoll.layers.values()].map(({ sprite }) => sprite);
+        tintTargets.forEach((sprite) => sprite.setTintFill(0xff6b61));
+        this.time.delayedCall(270, () => {
+          tintTargets.forEach((sprite) => sprite.clearTint());
+        });
         this.tweens.add({
           targets: targetSprite,
           x: 220,
