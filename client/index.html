@@ -418,6 +418,10 @@
                 <span class="settings-navigation-icon" aria-hidden="true">◈</span>
                 <span><strong>Graphics</strong><small>Performance and display</small></span>
               </button>
+              <button class="settings-navigation-item" type="button" data-settings-category="gameplay">
+                <span class="settings-navigation-icon" aria-hidden="true">♠</span>
+                <span><strong>Gameplay</strong><small>Hand display</small></span>
+              </button>
             </nav>
             <div class="settings-content">
               <section id="settings-sound" class="settings-category" aria-labelledby="settings-sound-title">
@@ -455,6 +459,19 @@
                     <label><input type="radio" name="fps-limit" value="120" /><span>120</span></label>
                     <label><input type="radio" name="fps-limit" value="144" /><span>144</span></label>
                   </fieldset>
+                </article>
+              </section>
+              <section id="settings-gameplay" class="settings-category" aria-labelledby="settings-gameplay-title" hidden>
+                <header class="settings-category-heading">
+                  <div class="settings-category-icon" aria-hidden="true">♠</div>
+                  <div><h3 id="settings-gameplay-title">Gameplay</h3><p>Customize your game display</p></div>
+                </header>
+                <article class="settings-card gameplay-setting">
+                  <div class="settings-card-copy">
+                    <label for="show-hand-count">Show hand count</label>
+                    <p>Display the total value for each hand at the table.</p>
+                  </div>
+                  <input id="show-hand-count" type="checkbox" checked />
                 </article>
               </section>
             </div>

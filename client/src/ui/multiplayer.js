@@ -4,7 +4,7 @@ import { createBlackjackMultiplayerGame } from '../game/blackjack-scene.js';
 
 const savedRoomKey = 'blackjack-multiplayer-room';
 
-export function createMultiplayerController({ getFpsLimit, onStatsUpdated }) {
+export function createMultiplayerController({ getFpsLimit, getShowHandCount, onStatsUpdated }) {
   const entry = document.querySelector('#multiplayer-entry');
   const createButton = document.querySelector('#multiplayer-create');
   const joinForm = document.querySelector('#multiplayer-join-form');
@@ -158,7 +158,7 @@ export function createMultiplayerController({ getFpsLimit, onStatsUpdated }) {
     roomPanel.dataset.phase = roomState.phase;
     roomCodeDisplay.textContent = roomState.code;
     if (roomState.phase !== 'lobby') {
-      tableGame ??= createBlackjackMultiplayerGame(tableParent, getFpsLimit());
+      tableGame ??= createBlackjackMultiplayerGame(tableParent, getFpsLimit(), getShowHandCount());
       tableGame.scene.getScene('blackjack-multiplayer')?.renderRoom(roomState);
     }
     const currentPlayer = roomState.players.find(({ id }) => id === roomState.currentPlayerId);
@@ -334,9 +334,13 @@ export function createMultiplayerController({ getFpsLimit, onStatsUpdated }) {
   function refreshFpsLimit() {
     if (!roomState || roomState.phase === 'lobby') return;
     tableGame?.destroy(true);
-    tableGame = createBlackjackMultiplayerGame(tableParent, getFpsLimit());
+    tableGame = createBlackjackMultiplayerGame(tableParent, getFpsLimit(), getShowHandCount());
     tableGame.scene.getScene('blackjack-multiplayer')?.renderRoom(roomState);
   }
 
-  return { open, close, refreshFpsLimit };
+  function refreshShowHandCount(showHandCount) {
+    tableGame?.scene.getScene('blackjack-multiplayer')?.setShowHandCount(showHandCount);
+  }
+
+  return { open, close, refreshFpsLimit, refreshShowHandCount };
 }

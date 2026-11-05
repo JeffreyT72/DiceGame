@@ -9,6 +9,26 @@ const suitSymbols = {
   hearts: '♥',
   spades: '♠',
 };
+
+const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+
+const getCardSuitColor = (suit) => (suit === 'hearts' || suit === 'diamonds' ? '#c44444' : '#263443');
+
+const getDamageBonusLabels = (event) => {
+  const bonusLabels = [];
+  if (event.hitCount > 0) bonusLabels.push(`HITS x${event.hitMultiplier.toFixed(1)}`);
+  if (event.matchingPair) bonusLabels.push('PAIR x1.5');
+  if (event.fiveCardHand) bonusLabels.push('5 CARDS x2');
+  if (event.doubledDown) bonusLabels.push('DOUBLE DOWN x2');
+  if (event.criticalHit) bonusLabels.push('CRITICAL x1.5');
+  if (event.wagerPercentage > 0) bonusLabels.push(`WAGER +${event.wagerPercentage * 200}%`);
+  if (event.itemAttack > 0) bonusLabels.push(`ITEM ATK +${event.itemAttack}`);
+  if (event.noHit) bonusLabels.push('GUARD x0.5');
+  if (event.itemDamageReduction > 0) bonusLabels.push(`ITEM GUARD -${event.itemDamageReduction * 100}%`);
+  if (event.healed > 0) bonusLabels.push(`HEAL +${event.healed} HP`);
+  return bonusLabels;
+};
+
 class BlackjackScene extends Phaser.Scene {
   constructor() {
     super('blackjack');
@@ -23,6 +43,8 @@ class BlackjackScene extends Phaser.Scene {
     this.lastDamageGameId = null;
     this.renderedGameId = null;
     this.renderedCardCounts = { dealer: 0, player: 0 };
+    this.showHandCount = true;
+    this.currentGame = null;
   }
 
   preload() {
@@ -32,6 +54,7 @@ class BlackjackScene extends Phaser.Scene {
   }
 
   create() {
+    this.showHandCount = this.registry.get('showHandCount') ?? true;
     this.battleMode = this.registry.get('battleMode') ?? 'dungeon';
     this.setCharacter(this.registry.get('selectedCharacter') ?? 'adventurer');
     this.drawBattlefield();
@@ -46,6 +69,14 @@ class BlackjackScene extends Phaser.Scene {
     if (this.pendingBattlefield) {
       this.renderBattlefield(this.pendingBattlefield);
       this.pendingBattlefield = null;
+    }
+  }
+
+  setShowHandCount(showHandCount) {
+    this.showHandCount = showHandCount;
+    this.registry.set('showHandCount', showHandCount);
+    if (this.handLayer && this.currentGame) {
+      this.renderGame(this.currentGame);
     }
   }
 
@@ -269,6 +300,7 @@ class BlackjackScene extends Phaser.Scene {
   }
 
   renderGame(game) {
+    this.currentGame = game;
     if (!this.handLayer) {
       this.pendingGame = game;
       return;
@@ -358,21 +390,7 @@ class BlackjackScene extends Phaser.Scene {
       stroke: '#34261d',
       strokeThickness: 5,
     }).setOrigin(0.5));
-    const bonusLabels = [];
-    if (event.hitCount > 0) bonusLabels.push(`HITS x${event.hitMultiplier.toFixed(1)}`);
-    if (event.matchingPair) bonusLabels.push('PAIR x1.5');
-    if (event.fiveCardHand) bonusLabels.push('5 CARDS x2');
-    if (event.doubledDown) bonusLabels.push('DOUBLE DOWN x2');
-    if (event.criticalHit) bonusLabels.push('CRITICAL x1.5');
-    if (event.wagerPercentage > 0) {
-      bonusLabels.push(`WAGER +${event.wagerPercentage * 200}%`);
-    }
-    if (event.itemAttack > 0) bonusLabels.push(`ITEM ATK +${event.itemAttack}`);
-    if (event.noHit) bonusLabels.push('GUARD x0.5');
-    if (event.itemDamageReduction > 0) {
-      bonusLabels.push(`ITEM GUARD -${event.itemDamageReduction * 100}%`);
-    }
-    if (event.healed > 0) bonusLabels.push(`HEAL +${event.healed} HP`);
+    const bonusLabels = getDamageBonusLabels(event);
     bonusLabels.forEach((label, index) => {
       effect.add(this.add.text(0, 15 + index * 18, label, {
         color: event.noHit && label === 'GUARD x0.5' ? '#b4d282' : '#e8f6c7',
@@ -408,7 +426,7 @@ class BlackjackScene extends Phaser.Scene {
       if (incoming) {
         const tintTargets = [...this.paperDoll.layers.values()].map(({ sprite }) => sprite);
         tintTargets.forEach((sprite) => sprite.setTintFill(0xff6b61));
-        this.time.delayedCall(270, () => {
+        this.time.delayedCall(350, () => {
           tintTargets.forEach((sprite) => sprite.clearTint());
         });
         this.tweens.add({
@@ -434,13 +452,18 @@ class BlackjackScene extends Phaser.Scene {
     if (this.handLayer) {
       this.handLayer.removeAll(true);
     }
+    this.currentGame = null;
+    this.pendingGame = null;
     this.renderedGameId = null;
     this.renderedCardCounts = { dealer: 0, player: 0 };
   }
 
   addHealthBar(label, hp, maxHp, x, y, color) {
-    const roundedHp = Math.round(hp);
-    const roundedMaxHp = Math.round(maxHp);
+    const safeMaxHp = Number.isFinite(maxHp) && maxHp > 0 ? maxHp : 1;
+    const safeHp = clamp(Number.isFinite(hp) ? hp : 0, 0, safeMaxHp);
+    const roundedHp = Math.round(safeHp);
+    const roundedMaxHp = Math.round(safeMaxHp);
+
     this.healthLayer.add(this.add.text(x, y - 20, `${label}  ${roundedHp} / ${roundedMaxHp} HP`, {
       color: '#e9f5ed',
       fontFamily: 'Arial, sans-serif',
@@ -449,14 +472,20 @@ class BlackjackScene extends Phaser.Scene {
     }));
     this.healthLayer.add(this.add.rectangle(x + 110, y, 220, 16, 0x14221c)
       .setStrokeStyle(1, 0xb3c8b8));
-    if (roundedHp > 0) {
-      const width = 216 * roundedHp / roundedMaxHp;
-      this.healthLayer.add(this.add.rectangle(x + 3 + width / 2, y, width, 10, color));
+
+    if (safeHp > 0) {
+      const fillWidth = clamp((216 * safeHp) / safeMaxHp, 0, 216);
+      this.healthLayer.add(this.add.rectangle(x + 3 + fillWidth / 2, y, fillWidth, 10, color));
     }
   }
 
   addHand(label, cards, score, cardY, labelY, drawStartIndex, centerX = 430, maxWidth = 790) {
-    const scoreText = score === null ? '' : `  ·  ${score}`;
+    const handCards = Array.isArray(cards) ? cards : [];
+    if (handCards.length === 0) {
+      return;
+    }
+
+    const scoreText = this.showHandCount && score !== null ? `  ·  ${score}` : '';
     this.handLayer.add(this.add.text(centerX - maxWidth / 2, labelY, `${label}${scoreText}`, {
       color: '#e9f5ed',
       fontFamily: 'Arial, sans-serif',
@@ -464,12 +493,13 @@ class BlackjackScene extends Phaser.Scene {
       fontStyle: 'bold',
     }));
 
-    const cardWidth = Math.min(78, (maxWidth - 9 * Math.max(0, cards.length - 1)) / cards.length);
-    const cardHeight = cardWidth * 1.42;
     const gap = 9;
-    const startX = centerX - ((cards.length - 1) * (cardWidth + gap)) / 2;
+    const maxCardWidth = 78;
+    const cardWidth = clamp(Math.min(maxCardWidth, (maxWidth - gap * Math.max(0, handCards.length - 1)) / handCards.length), 1, maxCardWidth);
+    const cardHeight = cardWidth * 1.42;
+    const startX = centerX - ((handCards.length - 1) * (cardWidth + gap)) / 2;
 
-    cards.forEach((card, index) => {
+    handCards.forEach((card, index) => {
       const x = startX + index * (cardWidth + gap);
       const container = this.add.container(x, cardY);
       const background = this.add.rectangle(0, 0, cardWidth, cardHeight, card.hidden ? 0x245780 : 0xfffcf4)
@@ -485,7 +515,7 @@ class BlackjackScene extends Phaser.Scene {
           fontSize: `${Math.max(20, cardWidth * 0.38)}px`,
         }).setOrigin(0.5));
       } else {
-        const color = card.suit === 'hearts' || card.suit === 'diamonds' ? '#c44444' : '#263443';
+        const color = getCardSuitColor(card.suit);
         container.add(this.add.text(-cardWidth / 2 + 7, -cardHeight / 2 + 5, card.rank, {
           color,
           fontFamily: 'Arial, sans-serif',
@@ -512,8 +542,8 @@ class BlackjackScene extends Phaser.Scene {
           alpha: 1,
           scale: 1,
           rotation: 0,
-          delay: (index - drawStartIndex) * 90,
-          duration: 420,
+          delay: (index - drawStartIndex) * 92,
+          duration: 450,
           ease: 'Back.Out',
         });
       }
@@ -534,6 +564,7 @@ class CardScene extends BlackjackScene {
 
   create() {
     this.selectedTableTheme = this.registry.get('selectedTableTheme') ?? 'default';
+    this.showHandCount = this.registry.get('showHandCount') ?? true;
     this.drawCardBackdrop();
     this.handLayer = this.add.container(0, 0);
     this.hitCounter = this.add.container(430, 245).setVisible(false);
@@ -632,9 +663,12 @@ class MultiplayerTableScene extends Phaser.Scene {
   constructor() {
     super('blackjack-multiplayer');
     this.pendingRoom = null;
+    this.showHandCount = true;
+    this.currentRoom = null;
   }
 
   create() {
+    this.showHandCount = this.registry.get('showHandCount') ?? true;
     const table = this.add.graphics();
     const outerPoints = this.semicirclePoints(48, 128, 452, 414);
     table.fillStyle(0x493020, 1);
@@ -675,7 +709,16 @@ class MultiplayerTableScene extends Phaser.Scene {
     return points;
   }
 
+  setShowHandCount(showHandCount) {
+    this.showHandCount = showHandCount;
+    this.registry.set('showHandCount', showHandCount);
+    if (this.tableLayer && this.currentRoom) {
+      this.renderRoom(this.currentRoom);
+    }
+  }
+
   renderRoom(room) {
+    this.currentRoom = room;
     if (!this.tableLayer) {
       this.pendingRoom = room;
       return;
@@ -690,7 +733,7 @@ class MultiplayerTableScene extends Phaser.Scene {
       fontSize: '12px',
       fontStyle: 'bold',
     }).setOrigin(0.5));
-    this.tableLayer.add(this.add.text(500, 147, room.dealerScore === null || room.dealerScore === undefined
+    this.tableLayer.add(this.add.text(500, 147, !this.showHandCount || room.dealerScore === null || room.dealerScore === undefined
       ? ''
       : `${room.dealerScore}`, {
       color: '#f1f4ef',
@@ -724,7 +767,7 @@ class MultiplayerTableScene extends Phaser.Scene {
 
       const playerHand = player.hand?.playerHand ?? [];
       const score = player.hand?.playerScore;
-      const details = `${Math.round(player.alive ? player.playerHp : 0)}/${Math.round(player.maxHp)} HP${score === null || score === undefined ? '' : ` · ${score}`}`;
+      const details = `${Math.round(player.alive ? player.playerHp : 0)}/${Math.round(player.maxHp)} HP${!this.showHandCount || score === null || score === undefined ? '' : ` · ${score}`}`;
       this.tableLayer.add(this.add.text(x, y - 25, details, {
         color: player.alive ? '#d4e1d8' : '#ef9586',
         fontFamily: 'Arial, sans-serif',
@@ -816,12 +859,17 @@ class MultiplayerTableScene extends Phaser.Scene {
   }
 
   drawCards(cards, centerX, centerY, cardWidth, cardHeight, maxWidth = 176) {
+    const handCards = Array.isArray(cards) ? cards : [];
+    if (handCards.length === 0) {
+      return;
+    }
+
     const gap = 4;
-    const width = Math.min(cardWidth, maxWidth / Math.max(1, cards.length) - gap);
+    const width = clamp(Math.min(cardWidth, maxWidth / Math.max(1, handCards.length) - gap), 1, cardWidth);
     const height = width * cardHeight / cardWidth;
     const cardGap = Math.min(gap, width * 0.1);
-    const startX = centerX - ((cards.length - 1) * (width + cardGap)) / 2;
-    cards.forEach((card, index) => {
+    const startX = centerX - ((handCards.length - 1) * (width + cardGap)) / 2;
+    handCards.forEach((card, index) => {
       const x = startX + index * (width + cardGap);
       const container = this.add.container(x, centerY);
       const hidden = card.hidden;
@@ -834,8 +882,7 @@ class MultiplayerTableScene extends Phaser.Scene {
           fontSize: `${Math.max(15, width * 0.45)}px`,
         }).setOrigin(0.5));
       } else {
-        const redSuit = card.suit === 'hearts' || card.suit === 'diamonds';
-        const color = redSuit ? '#c44444' : '#263443';
+        const color = getCardSuitColor(card.suit);
         const symbol = suitSymbols[card.suit] ?? '';
         container.add(this.add.text(-width / 2 + 4, -height / 2 + 3, card.rank ?? '', {
           color,
@@ -863,6 +910,7 @@ function createGame(
   fpsLimit = 0,
   selectedTitle = '',
   battleMode = 'dungeon',
+  showHandCount = true,
 ) {
   const game = new Phaser.Game({
     type: Phaser.AUTO,
@@ -887,6 +935,7 @@ function createGame(
   game.registry.set('selectedTableTheme', selectedTableTheme);
   game.registry.set('selectedTitle', selectedTitle);
   game.registry.set('battleMode', battleMode);
+  game.registry.set('showHandCount', showHandCount);
   return game;
 }
 
@@ -898,9 +947,20 @@ export function createBlackjackGame(
   fpsLimit = 0,
   selectedTitle = '',
   battleMode = 'dungeon',
+  showHandCount = true,
 ) {
   return {
-    cards: createGame(cardParent, CardScene, selectedCharacter, undefined, selectedTableTheme, fpsLimit),
+    cards: createGame(
+      cardParent,
+      CardScene,
+      selectedCharacter,
+      undefined,
+      selectedTableTheme,
+      fpsLimit,
+      '',
+      'dungeon',
+      showHandCount,
+    ),
     battlefield: createGame(
       battlefieldParent,
       BlackjackScene,
@@ -910,10 +970,21 @@ export function createBlackjackGame(
       fpsLimit,
       selectedTitle,
       battleMode,
+      showHandCount,
     ),
   };
 }
 
-export function createBlackjackMultiplayerGame(parent, fpsLimit = 0) {
-  return createGame(parent, MultiplayerTableScene, 'adventurer', { width: 1000, height: 600 }, 'default', fpsLimit);
+export function createBlackjackMultiplayerGame(parent, fpsLimit = 0, showHandCount = true) {
+  return createGame(
+    parent,
+    MultiplayerTableScene,
+    'adventurer',
+    { width: 1000, height: 600 },
+    'default',
+    fpsLimit,
+    '',
+    'dungeon',
+    showHandCount,
+  );
 }

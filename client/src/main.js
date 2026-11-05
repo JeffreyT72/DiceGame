@@ -1,7 +1,7 @@
 import './styles/main.css';
-import backgroundMusicUrl from './assets/music/lofi-hip-hop1.mp3';
 import { createBlackjackGame } from './game/blackjack-scene.js';
 import { characters } from './game/characters.js';
+import { createInfiniteTowerMode } from './game/infinite-tower.js';
 import deepTealPreview from './assets/tables/static/062633.png';
 import berryPreview from './assets/tables/static/630632.png';
 import { request } from './services/api.js';
@@ -9,6 +9,7 @@ import { outcomeMessage, resolveCombatRound } from './game/combat.js';
 import { createAuthController } from './ui/auth.js';
 import { createCharacterLab } from './ui/character-lab.js';
 import { createDungeonCatalog } from './ui/dungeon-catalog.js';
+import { createGameSettings } from './ui/game-settings.js';
 import { createLeaderboardController } from './ui/leaderboard.js';
 import { createLootRenderer } from './ui/loot.js';
 import { createMultiplayerController } from './ui/multiplayer.js';
@@ -20,110 +21,25 @@ import {
   getDungeonMonster,
   getDungeonStageCount,
 } from '../../shared/dungeon-config.js';
-import { getTowerEncounter, getTowerFloorInBlock } from '../../shared/tower-config.js';
 import { tableThemes } from '../../shared/table-themes.js';
 import { getTitle, titles } from '../../shared/titles.js';
 
 const cardActionDelayMs = 200;
 const expRequiredForNextLevel = (level) => level * 100;
-const fpsLimitOptions = [0, 30, 60, 90, 120, 144];
-const fpsLimitStorageKey = 'blackjack-fps-limit';
-
-const backgroundMusic = new Audio(backgroundMusicUrl);
-backgroundMusic.loop = true;
-const savedMusicVolumeValue = window.localStorage.getItem('blackjack-music-volume');
-const savedMusicVolume = savedMusicVolumeValue === null ? 0.3 : Number(savedMusicVolumeValue);
-backgroundMusic.volume = Number.isFinite(savedMusicVolume) && savedMusicVolume >= 0 && savedMusicVolume <= 1
-  ? savedMusicVolume
-  : 0.3;
-backgroundMusic.muted = window.localStorage.getItem('blackjack-music-muted') === 'true';
-backgroundMusic.preload = 'auto';
-
-const musicVolume = document.querySelector('#music-volume');
-const musicToggle = document.querySelector('#music-toggle');
-const fpsLimitInputs = [...document.querySelectorAll('input[name="fps-limit"]')];
-const savedFpsLimit = Number(window.localStorage.getItem(fpsLimitStorageKey));
-let fpsLimit = fpsLimitOptions.includes(savedFpsLimit) ? savedFpsLimit : 0;
-fpsLimitInputs.forEach((input) => {
-  input.checked = Number(input.value) === fpsLimit;
-});
-
-function syncMusicControls() {
-  const isMuted = backgroundMusic.muted || backgroundMusic.volume === 0;
-  musicToggle.textContent = isMuted ? 'Unmute' : 'Mute';
-  musicToggle.setAttribute('aria-label', isMuted ? 'Unmute background music' : 'Mute background music');
-  musicVolume.value = String(isMuted ? 0 : backgroundMusic.volume);
-}
-
-function startBackgroundMusic() {
-  if (backgroundMusic.paused) {
-    const playAttempt = backgroundMusic.play();
-    if (playAttempt) {
-      playAttempt.catch(() => {
-        backgroundMusic.muted = true;
-        syncMusicControls();
-      });
-    }
-  }
-}
-
-musicVolume.addEventListener('input', (event) => {
-  const nextVolume = Number(event.target.value) || 0;
-  backgroundMusic.volume = nextVolume;
-  backgroundMusic.muted = nextVolume === 0;
-  window.localStorage.setItem('blackjack-music-volume', String(nextVolume));
-  window.localStorage.setItem('blackjack-music-muted', String(backgroundMusic.muted));
-  syncMusicControls();
-
-  if (nextVolume > 0) {
-    startBackgroundMusic();
-  }
-});
-
-musicToggle.addEventListener('click', () => {
-  if (backgroundMusic.muted || backgroundMusic.volume === 0) {
-    backgroundMusic.muted = false;
-    backgroundMusic.volume = Number(musicVolume.value) || 0.3;
-    startBackgroundMusic();
-  } else {
-    backgroundMusic.muted = true;
-  }
-  window.localStorage.setItem('blackjack-music-volume', String(backgroundMusic.volume));
-  window.localStorage.setItem('blackjack-music-muted', String(backgroundMusic.muted));
-  syncMusicControls();
-});
-
-document.addEventListener('pointerdown', startBackgroundMusic, { once: true });
-document.addEventListener('keydown', startBackgroundMusic, { once: true });
-
-startBackgroundMusic();
-syncMusicControls();
-
+const infiniteTower = createInfiniteTowerMode({ request });
 let game = null;
 let multiplayer;
-fpsLimitInputs.forEach((input) => {
-  input.addEventListener('change', () => {
-    if (!input.checked) return;
-    fpsLimit = Number(input.value);
-    window.localStorage.setItem(fpsLimitStorageKey, String(fpsLimit));
+const gameSettings = createGameSettings({
+  onFpsLimitChange: () => {
     game?.cards.destroy(true);
     game?.battlefield.destroy(true);
     game = null;
     multiplayer?.refreshFpsLimit();
-  });
-});
-
-document.querySelectorAll('[data-settings-category]').forEach((button) => {
-  button.addEventListener('click', () => {
-    const category = button.dataset.settingsCategory;
-    document.querySelectorAll('[data-settings-category]').forEach((categoryButton) => {
-      if (categoryButton === button) categoryButton.setAttribute('aria-current', 'page');
-      else categoryButton.removeAttribute('aria-current');
-    });
-    document.querySelectorAll('.settings-category').forEach((panel) => {
-      panel.hidden = panel.id !== `settings-${category}`;
-    });
-  });
+  },
+  onShowHandCountChange: (showHandCount) => {
+    game?.cards.scene.getScene('blackjack')?.setShowHandCount(showHandCount);
+    multiplayer?.refreshShowHandCount(showHandCount);
+  },
 });
 
 let currentGame = null;
@@ -246,25 +162,6 @@ function initialRunState(dungeon, run) {
     stage: 1,
     playerHp: baseMaximumHealth(),
     monsterHp: getDungeonMonster(dungeon, 1).hp,
-    lastResolvedGameId: null,
-    lastRoundMessage: '',
-    lastExpAwarded: 0,
-    phase: 'active',
-    pendingStageClear: null,
-    items: [],
-  };
-}
-
-function initialTowerRunState(run) {
-  const encounter = getTowerEncounter(run.floor);
-  return {
-    dungeonId: run.id,
-    mode: 'tower',
-    dungeon: { name: 'Infinite Tower' },
-    suggestedLevel: currentStats.level ?? 1,
-    stage: run.floor,
-    playerHp: baseMaximumHealth(),
-    monsterHp: encounter.monster.hp,
     lastResolvedGameId: null,
     lastRoundMessage: '',
     lastExpAwarded: 0,
@@ -425,7 +322,7 @@ async function updateTitle(title, action) {
 
 function currentMonster() {
   return runState?.mode === 'tower'
-    ? getTowerEncounter(runState.stage)?.monster
+    ? infiniteTower.getMonster(runState)
     : runState
       ? getDungeonMonster(runState.dungeon, runState.stage)
       : null;
@@ -433,7 +330,7 @@ function currentMonster() {
 
 function currentStageCount() {
   return runState?.mode === 'tower'
-    ? 10
+    ? infiniteTower.getStageCount()
     : runState
       ? getDungeonStageCount(runState.dungeon)
       : getDungeonStageCount(dungeons[0]);
@@ -450,7 +347,7 @@ function renderBattlefield() {
   const monster = currentMonster();
   const stageCount = currentStageCount();
   const boss = runState?.mode === 'tower'
-    ? Boolean(getTowerEncounter(runState.stage)?.boss)
+    ? infiniteTower.isBoss(runState)
     : Boolean(runState && runState.stage === stageCount);
   game.battlefield.scene.getScene('blackjack')?.renderBattlefield({
     mode: runState?.mode ?? 'dungeon',
@@ -582,9 +479,9 @@ function renderControls() {
   } else {
     const tower = runState.mode === 'tower';
     const stageCount = currentStageCount();
-    const blockFloor = tower ? getTowerFloorInBlock(runState.stage) : runState.stage;
+    const blockFloor = tower ? infiniteTower.getFloorInBlock(runState.stage) : runState.stage;
     const blockStart = tower ? runState.stage - blockFloor + 1 : 1;
-    const currentEncounter = tower ? getTowerEncounter(runState.stage) : null;
+    const currentEncounter = tower ? infiniteTower.getEncounter(runState.stage) : null;
     const isBoss = tower ? currentEncounter.boss : runState.stage === stageCount;
     const label = isBoss ? 'Boss' : 'Mob';
     dungeonProgress.textContent = runState.phase === 'complete'
@@ -615,7 +512,7 @@ function renderControls() {
     for (let stage = 1; stage <= stageCount; stage += 1) {
       const floor = tower ? blockStart + stage - 1 : stage;
       const monster = tower
-        ? getTowerEncounter(floor)?.monster
+        ? infiniteTower.getEncounter(floor)?.monster
         : getDungeonMonster(runState.dungeon, stage);
       const current = tower ? stage === blockFloor : stage === runState.stage;
       const completed = tower ? stage < blockFloor : stage < runState.stage;
@@ -706,14 +603,13 @@ async function syncStageClear() {
   const { stage, gameId } = runState.pendingStageClear;
   try {
     const tower = runState.mode === 'tower';
-    const endpoint = tower
-      ? `/api/tower-runs/${encodeURIComponent(runState.dungeonId)}/clear-floor`
-      : `/api/dungeons/${encodeURIComponent(runState.dungeonId)}/clear-stage`;
-    const result = await request(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(tower ? { floor: stage, gameId } : { stage, gameId }),
-    });
+    const result = tower
+      ? await infiniteTower.clearFloor(runState, stage, gameId)
+      : await request(`/api/dungeons/${encodeURIComponent(runState.dungeonId)}/clear-stage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stage, gameId }),
+      });
     if (result.stats) {
       currentStats = result.stats;
       applyTotalExp(result.stats.totalExp);
@@ -746,7 +642,7 @@ async function syncStageClear() {
 
 async function removeDungeonSession(dungeonId, gameId) {
   const endpoint = runState?.mode === 'tower'
-    ? `/api/tower-runs/${encodeURIComponent(dungeonId)}`
+    ? infiniteTower.getRunEndpoint(dungeonId)
     : `/api/dungeons/${encodeURIComponent(dungeonId)}`;
   await request(endpoint, {
     method: 'DELETE',
@@ -774,22 +670,6 @@ async function beginDungeon(selectedDungeon) {
   } catch (error) {
     console.error(error);
     status.textContent = `Could not enter the dungeon: ${error.message}`;
-  }
-}
-
-async function beginTower() {
-  renderControls();
-  status.textContent = 'Opening the Infinite Tower…';
-  try {
-    const { towerRun } = await request('/api/tower-runs', { method: 'POST' });
-    runState = initialTowerRunState(towerRun);
-    game?.battlefield.scene.getScene('blackjack')?.setBattleMode('tower');
-    renderBattlefield();
-    renderControls();
-    status.textContent = 'Choose an HP wager or skip to start your hand.';
-  } catch (error) {
-    console.error(error);
-    status.textContent = `Could not enter the tower: ${error.message}`;
   }
 }
 
@@ -856,36 +736,15 @@ async function startGame(selectedDungeon) {
       'battlefield-game',
       selectedCharacter,
       currentStats.tableTheme,
-      fpsLimit,
+      gameSettings.getFpsLimit(),
       getTitle(Number(currentStats.title))?.name ?? '',
+      'dungeon',
+      gameSettings.getShowHandCount(),
     );
     game.battlefield.scene.getScene('blackjack')?.setBattleMode('dungeon');
     await beginDungeon(selectedDungeon);
   } finally {
     startGameButton.disabled = false;
-    quitButton.disabled = false;
-  }
-}
-
-async function startTowerGame() {
-  const towerButton = document.querySelector('#tower-button');
-  const quitButton = document.querySelector('#dungeon-screen [data-back-to-lobby]');
-  towerButton.disabled = true;
-  quitButton.disabled = true;
-  try {
-    screens.show('dungeon');
-    game ??= createBlackjackGame(
-      'game',
-      'battlefield-game',
-      selectedCharacter,
-      currentStats.tableTheme,
-      fpsLimit,
-      getTitle(Number(currentStats.title))?.name ?? '',
-    );
-    game.battlefield.scene.getScene('blackjack')?.setBattleMode('tower');
-    await beginTower();
-  } finally {
-    towerButton.disabled = false;
     quitButton.disabled = false;
   }
 }
@@ -1015,7 +874,8 @@ const characterLab = createCharacterLab({
 });
 renderProgression = characterLab.renderProgression;
 multiplayer = createMultiplayerController({
-  getFpsLimit: () => fpsLimit,
+  getFpsLimit: () => gameSettings.getFpsLimit(),
+  getShowHandCount: () => gameSettings.getShowHandCount(),
   onStatsUpdated: (account) => {
     currentStats = account.stats;
     applyTotalExp(account.stats.totalExp);
@@ -1034,7 +894,32 @@ const screens = createScreenController({
     startGame,
     currentStats.level ?? 1,
   ),
-  onStartTower: startTowerGame,
+  onStartTower: () => infiniteTower.start({
+    towerButton: document.querySelector('#tower-button'),
+    quitButton: document.querySelector('#dungeon-screen [data-back-to-lobby]'),
+    showDungeon: () => screens.show('dungeon'),
+    ensureGame: () => {
+      game ??= createBlackjackGame(
+        'game',
+        'battlefield-game',
+        selectedCharacter,
+        currentStats.tableTheme,
+        gameSettings.getFpsLimit(),
+        getTitle(Number(currentStats.title))?.name ?? '',
+        'dungeon',
+        gameSettings.getShowHandCount(),
+      );
+    },
+    begin: () => infiniteTower.begin({
+      level: currentStats.level ?? 1,
+      maximumHealth: baseMaximumHealth(),
+      setRunState: (nextRunState) => { runState = nextRunState; },
+      setBattleMode: () => game?.battlefield.scene.getScene('blackjack')?.setBattleMode('tower'),
+      renderBattlefield,
+      renderControls,
+      setStatus: (message) => { status.textContent = message; },
+    }),
+  }),
   onOpenCharacter: () => {
     characterSelect.value = selectedCharacter;
     paperDollCustomizer.render(selectedCharacter);
@@ -1071,7 +956,7 @@ auth.checkSession();
 window.addEventListener('pagehide', () => {
   if (!runState?.dungeonId) return;
   const endpoint = runState.mode === 'tower'
-    ? `/api/tower-runs/${encodeURIComponent(runState.dungeonId)}`
+    ? infiniteTower.getRunEndpoint(runState.dungeonId)
     : `/api/dungeons/${encodeURIComponent(runState.dungeonId)}`;
   request(endpoint, {
     method: 'DELETE',

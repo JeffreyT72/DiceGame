@@ -799,6 +799,11 @@ h1 {
   background: #241922;
 }
 
+.gameplay-setting {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
 .settings-card-copy h4,
 .settings-card-copy label {
   margin: 0;
@@ -959,6 +964,12 @@ h1 {
 
 #music-volume {
   width: 100%;
+  accent-color: var(--color-accent);
+}
+
+#show-hand-count {
+  width: 20px;
+  height: 20px;
   accent-color: var(--color-accent);
 }
 
