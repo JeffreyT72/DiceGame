@@ -15,6 +15,7 @@ import { createLootRenderer } from './ui/loot.js';
 import { createMultiplayerController } from './ui/multiplayer.js';
 import { createPaperDollCustomizer } from './ui/paper-doll-customizer.js';
 import { createScreenController } from './ui/screens.js';
+import { defaultPaperDollTop, getPaperDollTop } from '../../shared/paper-doll.js';
 import { chooseItemOptions, getItem, getItemEffects } from '../../shared/items.js';
 import {
   dungeons,
@@ -52,6 +53,7 @@ let currentStats = {
   currency: 0,
   availableStatPoints: 0,
   character: characters[0].id,
+  top: defaultPaperDollTop,
   title: '0',
   frame: '',
   tableTheme: 'default',
@@ -100,6 +102,7 @@ const paperDollCustomizer = createPaperDollCustomizer({
 });
 
 let selectedCharacter = characters[0].id;
+let selectedTop = defaultPaperDollTop;
 let characterSettingsMessage = '';
 let tableThemeMessage = '';
 let tableThemeAction = null;
@@ -109,7 +112,7 @@ const tableThemePreviews = {
   '062633': deepTealPreview,
   '630632': berryPreview,
 };
-paperDollCustomizer.render(selectedCharacter);
+paperDollCustomizer.render(selectedCharacter, selectedTop);
 
 characterSelect.addEventListener('change', async () => {
   const character = characters.find(({ id }) => id === characterSelect.value);
@@ -118,6 +121,7 @@ characterSelect.addEventListener('change', async () => {
     return;
   }
   characterSelect.disabled = true;
+  paperDollCustomizer.topSelect.disabled = true;
   try {
     const { stats } = await request('/api/player/costume', {
       method: 'PATCH',
@@ -134,7 +138,35 @@ characterSelect.addEventListener('change', async () => {
     characterSettingsMessage = `Could not save ${character.name}: ${error.message}`;
   } finally {
     characterSelect.disabled = false;
-    paperDollCustomizer.render(selectedCharacter);
+    paperDollCustomizer.render(selectedCharacter, selectedTop);
+  }
+  characterStatus.textContent = characterSettingsMessage;
+});
+
+paperDollCustomizer.topSelect.addEventListener('change', async () => {
+  const top = getPaperDollTop(paperDollCustomizer.topSelect.value);
+  if (!top) {
+    paperDollCustomizer.render(selectedCharacter, selectedTop);
+    return;
+  }
+  paperDollCustomizer.topSelect.disabled = true;
+  characterSelect.disabled = true;
+  try {
+    const { stats } = await request('/api/player/costume', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ top: top.id }),
+    });
+    currentStats = stats;
+    selectedTop = stats.top;
+    game?.battlefield.scene.getScene('blackjack')?.setTop(selectedTop);
+    characterSettingsMessage = `${top.name} saved to your account.`;
+  } catch (error) {
+    console.error(error);
+    characterSettingsMessage = `Could not save ${top.name}: ${error.message}`;
+  } finally {
+    characterSelect.disabled = false;
+    paperDollCustomizer.render(selectedCharacter, selectedTop);
   }
   characterStatus.textContent = characterSettingsMessage;
 });
@@ -711,8 +743,10 @@ async function enterGame(account) {
   selectedCharacter = characters.some(({ id }) => id === currentStats.character)
     ? currentStats.character
     : characters[0].id;
+  selectedTop = getPaperDollTop(currentStats.top)?.id ?? defaultPaperDollTop;
   characterSelect.value = selectedCharacter;
-  paperDollCustomizer.render(selectedCharacter);
+  paperDollCustomizer.render(selectedCharacter, selectedTop);
+  game?.battlefield.scene.getScene('blackjack')?.setTop(selectedTop);
   game?.battlefield.scene.getScene('blackjack')?.setCharacter(selectedCharacter);
   game?.cards.scene.getScene('blackjack')?.setTableTheme(currentStats.tableTheme);
   applyTotalExp(account.stats.totalExp);
@@ -741,6 +775,7 @@ async function startGame(selectedDungeon) {
       getTitle(Number(currentStats.title))?.name ?? '',
       'dungeon',
       gameSettings.getShowHandCount(),
+      selectedTop,
     );
     game.battlefield.scene.getScene('blackjack')?.setBattleMode('dungeon');
     await beginDungeon(selectedDungeon);
@@ -909,6 +944,7 @@ const screens = createScreenController({
         getTitle(Number(currentStats.title))?.name ?? '',
         'dungeon',
         gameSettings.getShowHandCount(),
+        selectedTop,
       );
     },
     begin: () => infiniteTower.begin({
@@ -923,7 +959,7 @@ const screens = createScreenController({
   }),
   onOpenCharacter: () => {
     characterSelect.value = selectedCharacter;
-    paperDollCustomizer.render(selectedCharacter);
+    paperDollCustomizer.render(selectedCharacter, selectedTop);
     characterStatus.textContent = characterSettingsMessage;
   },
   onOpenStore: () => {

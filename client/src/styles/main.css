@@ -935,6 +935,21 @@ h1 {
   font-size: 0.86rem;
 }
 
+.paper-doll-slot label {
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+}
+
+.paper-doll-slot select {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 7px;
+  background: var(--color-surface-deep);
+  color: var(--color-text);
+  font: inherit;
+}
+
 .paper-doll-slot span,
 .paper-doll-note,
 .paper-doll-preview-status {

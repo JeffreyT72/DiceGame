@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import { characters, characterSpriteLayout } from './characters.js';
 import { PaperDoll } from './paper-doll.js';
+import { drawPaperDollTop } from './paper-doll-tops.js';
+import { defaultPaperDollTop, getPaperDollTop } from '../../../shared/paper-doll.js';
 import { getTableTheme } from '../../../shared/table-themes.js';
 
 const suitSymbols = {
@@ -36,10 +38,12 @@ class BlackjackScene extends Phaser.Scene {
     this.pendingBattlefield = null;
     this.combatState = { playerHp: 100, monsterHp: 100 };
     this.selectedCharacter = 'adventurer';
+    this.selectedTop = defaultPaperDollTop;
     this.selectedTitle = '';
     this.heroSprite = null;
     this.paperDoll = null;
     this.heroAnimationTimer = null;
+    this.heroAnimation = 'idle';
     this.lastDamageGameId = null;
     this.renderedGameId = null;
     this.renderedCardCounts = { dealer: 0, player: 0 };
@@ -56,6 +60,7 @@ class BlackjackScene extends Phaser.Scene {
   create() {
     this.showHandCount = this.registry.get('showHandCount') ?? true;
     this.battleMode = this.registry.get('battleMode') ?? 'dungeon';
+    this.selectedTop = this.registry.get('selectedTop') ?? defaultPaperDollTop;
     this.setCharacter(this.registry.get('selectedCharacter') ?? 'adventurer');
     this.drawBattlefield();
     this.setTitle(this.registry.get('selectedTitle') ?? '');
@@ -135,27 +140,92 @@ class BlackjackScene extends Phaser.Scene {
     });
   }
 
+  createHeroTopTexture(topId) {
+    const textureKey = `hero-top-${topId}`;
+    if (this.textures.exists(textureKey)) {
+      return;
+    }
+
+    const character = characters.find(({ id }) => id === 'chibi');
+    const { idleFrames, frameWidth, frameHeight, animationRows } = character.spriteLayout;
+    const animations = {
+      idle: 0,
+      ...animationRows,
+    };
+    const canvas = document.createElement('canvas');
+    canvas.width = frameWidth * idleFrames.length;
+    canvas.height = frameHeight * Object.keys(animations).length;
+    const context = canvas.getContext('2d');
+
+    Object.values(animations).forEach((rowIndex) => {
+      idleFrames.forEach((_, frameIndex) => {
+        context.save();
+        context.translate(frameIndex * frameWidth, rowIndex * frameHeight);
+        drawPaperDollTop(context, topId, frameWidth, frameHeight);
+        context.restore();
+      });
+    });
+
+    const texture = this.textures.addCanvas(textureKey, canvas);
+    Object.entries(animations).forEach(([animation, rowIndex]) => {
+      idleFrames.forEach((_, frameIndex) => {
+        texture.add(
+          `${animation}-${frameIndex}`,
+          0,
+          frameIndex * frameWidth,
+          rowIndex * frameHeight,
+          frameWidth,
+          frameHeight,
+        );
+      });
+    });
+  }
+
+  setPaperDollTop(animation = this.heroAnimation) {
+    if (this.selectedCharacter !== 'chibi') {
+      this.paperDoll.removeLayer('top');
+      return;
+    }
+    this.createHeroTopTexture(this.selectedTop);
+    const character = characters.find(({ id }) => id === 'chibi');
+    const frameNames = character.spriteLayout.idleFrames.map((_, frameIndex) => `${animation}-${frameIndex}`);
+    this.paperDoll.setLayer('top', `hero-top-${this.selectedTop}`, frameNames, 1);
+  }
+
   setHeroAnimation(animation) {
     const character = characters.find(({ id }) => id === this.selectedCharacter) ?? characters[0];
     const layout = character.spriteLayout ?? characterSpriteLayout;
     if (layout.animationRows?.[animation] === undefined) return;
 
     this.heroAnimationTimer?.remove(false);
+    this.heroAnimation = animation;
     this.paperDoll.frameIndex = 0;
     this.paperDoll.setLayer(
       'body',
       `hero-idle-${character.id}`,
       layout.idleFrames.map((_, frameIndex) => `${animation}-${frameIndex}`),
     );
+    this.setPaperDollTop(animation);
     this.heroAnimationTimer = this.time.delayedCall(1000, () => {
       this.paperDoll.frameIndex = 0;
+      this.heroAnimation = 'idle';
       this.paperDoll.setLayer(
         'body',
         `hero-idle-${character.id}`,
         layout.idleFrames.map((_, frameIndex) => `idle-${frameIndex}`),
       );
+      this.setPaperDollTop();
       this.heroAnimationTimer = null;
     });
+  }
+
+  setTop(topId) {
+    if (!getPaperDollTop(topId)) {
+      throw new RangeError(`Unknown paper-doll top: ${topId}`);
+    }
+    this.selectedTop = topId;
+    this.registry.set('selectedTop', topId);
+    if (this.paperDoll) this.setPaperDollTop();
   }
 
   setCharacter(characterId) {
@@ -164,6 +234,7 @@ class BlackjackScene extends Phaser.Scene {
     this.registry.set('selectedCharacter', character.id);
     this.heroAnimationTimer?.remove(false);
     this.heroAnimationTimer = null;
+    this.heroAnimation = 'idle';
     this.createHeroIdleTexture(character.id);
     if (this.paperDoll) {
       this.paperDoll.frameIndex = 0;
@@ -173,6 +244,7 @@ class BlackjackScene extends Phaser.Scene {
         `hero-idle-${character.id}`,
         layout.idleFrames.map((_, frameIndex) => `idle-${frameIndex}`),
       );
+      this.setPaperDollTop();
       this.heroSprite.setScale(character.displayScale ?? 1.25);
     }
     this.heroLabel?.setText(character.name.toUpperCase());
@@ -273,6 +345,7 @@ class BlackjackScene extends Phaser.Scene {
       `hero-idle-${this.selectedCharacter}`,
       layout.idleFrames.map((_, frameIndex) => `idle-${frameIndex}`),
     );
+    this.setPaperDollTop();
     this.heroSprite = this.paperDoll.container.setScale(character.displayScale ?? 1.25);
   }
 
@@ -975,6 +1048,7 @@ function createGame(
   selectedTitle = '',
   battleMode = 'dungeon',
   showHandCount = true,
+  selectedTop = defaultPaperDollTop,
 ) {
   const game = new Phaser.Game({
     type: Phaser.AUTO,
@@ -996,6 +1070,7 @@ function createGame(
     },
   });
   game.registry.set('selectedCharacter', selectedCharacter);
+  game.registry.set('selectedTop', selectedTop);
   game.registry.set('selectedTableTheme', selectedTableTheme);
   game.registry.set('selectedTitle', selectedTitle);
   game.registry.set('battleMode', battleMode);
@@ -1012,6 +1087,7 @@ export function createBlackjackGame(
   selectedTitle = '',
   battleMode = 'dungeon',
   showHandCount = true,
+  selectedTop = defaultPaperDollTop,
 ) {
   return {
     cards: createGame(
@@ -1024,6 +1100,7 @@ export function createBlackjackGame(
       '',
       'dungeon',
       showHandCount,
+      selectedTop,
     ),
     battlefield: createGame(
       battlefieldParent,
@@ -1035,6 +1112,7 @@ export function createBlackjackGame(
       selectedTitle,
       battleMode,
       showHandCount,
+      selectedTop,
     ),
   };
 }

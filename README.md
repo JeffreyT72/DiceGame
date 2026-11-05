@@ -47,6 +47,8 @@ Single-player dungeon definitions, including stage counts, level requirements, e
 
 Each dungeon run starts at stage 1 and is temporary. Clearing the final boss awards the configured dungeon experience; a defeated character loses the run. Character level-ups grant a stat point for strength, agility, constitution, or luck. Run items do not persist after the run ends.
 
+The Character screen includes generated tunic colors for the Chibi paper-doll model. The selected top is saved to the account; other character sprites keep their original art.
+
 Multiplayer rooms support two to four signed-in players. The host starts the dungeon, the party shares monster health and each blackjack round's dealer hand, and players take turns. Room membership and active progress are held in server memory and are lost if the server restarts. WebSocket connections use the signed-in session and require a same-host browser origin.
 
 Infinite Tower reuses the dungeon monster roster and battle scene. A boss appears every tenth floor; monster health, attack, and defense increase by 20% each ten-floor block. The ten-floor progress track resets after each boss while the overall floor count continues. Tower progress is temporary and is not saved for resuming; cleared floors award EXP and loot, with each floor's EXP capped at five times the EXP required for the player's next level.

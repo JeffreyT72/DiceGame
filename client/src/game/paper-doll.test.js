@@ -98,6 +98,21 @@ test('paper-doll slots can change textures and be removed', () => {
   assert.equal(doll.container.list.length, 0);
 });
 
+test('body and top layers stay aligned when animation and top change together', () => {
+  const scene = createScene();
+  const doll = new PaperDoll(scene, 0, 0);
+  const body = doll.setLayer('body', 'chibi-body', ['idle-0', 'idle-1']);
+  const top = doll.setLayer('top', 'crimson-top', ['idle-0', 'idle-1'], 1);
+  scene.timers[0].callback();
+
+  doll.setLayer('body', 'chibi-body', ['attack-0', 'attack-1']);
+  doll.setLayer('top', 'azure-top', ['attack-0', 'attack-1'], 1);
+
+  assert.equal(body.frame, 'attack-1');
+  assert.equal(top.textureKey, 'azure-top');
+  assert.equal(top.frame, 'attack-1');
+});
+
 test('paper-doll animation requires a positive frame rate', () => {
   assert.throws(() => new PaperDoll(createScene(), 0, 0, { frameRate: 0 }), RangeError);
 });

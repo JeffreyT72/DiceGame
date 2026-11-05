@@ -26,6 +26,7 @@ import {
   meetsDungeonLevelRequirement,
 } from '../shared/dungeon-config.js';
 import { getTableTheme } from '../shared/table-themes.js';
+import { defaultPaperDollTop, getPaperDollTop } from '../shared/paper-doll.js';
 import { getTitle, titles } from '../shared/titles.js';
 import { getTowerEncounter, getTowerFloorExpReward } from '../shared/tower-config.js';
 import { MultiplayerRooms } from './multiplayer.js';
@@ -80,6 +81,7 @@ playerDatabase.exec(`
     monsters_defeated INTEGER NOT NULL DEFAULT 0 CHECK (monsters_defeated >= 0),
     character_name TEXT NOT NULL DEFAULT '',
     character TEXT NOT NULL DEFAULT 'adventurer',
+    top TEXT NOT NULL DEFAULT '${defaultPaperDollTop}',
     title TEXT NOT NULL DEFAULT '0',
     frame TEXT NOT NULL DEFAULT '',
     table_theme TEXT NOT NULL DEFAULT 'default',
@@ -207,6 +209,7 @@ for (const column of ['strength', 'agility', 'constitution', 'luck', 'currency']
 for (const [column, defaultValue] of Object.entries({
   character_name: "''",
   character: "'adventurer'",
+  top: `'${defaultPaperDollTop}'`,
   title: "'0'",
   frame: "''",
   table_theme: "'default'",
@@ -719,11 +722,11 @@ app.get('/api/player/stats', requirePlayer, (request, response) => {
   response.json({ stats: playerStats(request.playerId) });
 });
 
-const costumeCharacters = new Set(['adventurer', 'adventurer-male', 'mel', 'body', 'testing']);
+const costumeCharacters = new Set(['adventurer', 'adventurer-male', 'mel', 'body', 'testing', 'chibi']);
 
 app.patch('/api/player/costume', requirePlayer, (request, response) => {
   const costume = request.body;
-  const costumeFields = ['character', 'frame'];
+  const costumeFields = ['character', 'frame', 'top'];
   if (
     !costume
     || typeof costume !== 'object'
@@ -740,6 +743,9 @@ app.patch('/api/player/costume', requirePlayer, (request, response) => {
   ) {
     return response.status(400).json({ error: 'Choose a valid character.' });
   }
+  if (Object.hasOwn(costume, 'top') && !getPaperDollTop(costume.top)) {
+    return response.status(400).json({ error: 'Choose a valid top.' });
+  }
   for (const field of ['frame']) {
     if (
       Object.hasOwn(costume, field)
@@ -750,18 +756,19 @@ app.patch('/api/player/costume', requirePlayer, (request, response) => {
   }
 
   const existingCostume = playerDatabase.prepare(`
-    SELECT character, frame FROM player_stats WHERE user_id = ?
+    SELECT character, frame, top FROM player_stats WHERE user_id = ?
   `).get(request.playerId);
   if (!existingCostume) {
     return response.status(404).json({ error: 'Player stats could not be found.' });
   }
   playerDatabase.prepare(`
     UPDATE player_stats
-    SET character = ?, frame = ?, updated_at = datetime('now')
+    SET character = ?, frame = ?, top = ?, updated_at = datetime('now')
     WHERE user_id = ?
   `).run(
     costume.character ?? existingCostume.character,
     costume.frame ?? existingCostume.frame,
+    costume.top ?? existingCostume.top,
     request.playerId,
   );
   response.json({ stats: playerStats(request.playerId) });
@@ -1179,7 +1186,7 @@ function playerStats(userId) {
   const stats = playerDatabase.prepare(`
     SELECT total_exp AS totalExp, games_played AS gamesPlayed, wins, losses, pushes,
       monsters_defeated AS monstersDefeated, strength, agility, constitution, luck, currency,
-      character_name AS characterName, character, title, frame, table_theme AS tableTheme
+      character_name AS characterName, character, top, title, frame, table_theme AS tableTheme
     FROM player_stats WHERE user_id = ?
   `).get(userId);
   if (!stats) {

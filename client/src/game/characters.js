@@ -3,6 +3,7 @@ import maleAdventurerSpriteSheet from '../assets/characters/main_v2_male.png';
 import melSpriteSheet from '../assets/characters/mel_v1.png';
 import bodySpriteSheet from '../assets/characters/hero/body-game.png';
 import testingSpriteSheet from '../assets/characters/hero/testing.png';
+import chibiSpriteSheet from '../assets/characters/hero/chibi_character.png';
 
 export const characterSpriteLayout = {
   idleFrames: [15, 125, 235, 345],
@@ -43,5 +44,22 @@ export const characters = [
       },
     },
     displayScale: 1.2,
+  },
+  {
+    id: 'chibi',
+    name: 'Chibi',
+    spriteSheet: chibiSpriteSheet,
+    spriteLayout: {
+      idleFrames: [0, 192, 384, 576, 768, 960, 1152, 1344],
+      frameWidth: 192,
+      frameHeight: 256,
+      frameTop: 0,
+      animationRows: {
+        attack: 1,
+        special: 2,
+        hurt: 3,
+      },
+    },
+    displayScale: 0.8,
   },
 ];
