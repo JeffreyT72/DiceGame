@@ -96,6 +96,9 @@
             </div>
           </section>
           <nav class="lobby-options" aria-label="Game menu">
+            <button id="daily-challenges-button" class="lobby-option" type="button" aria-haspopup="dialog" aria-controls="daily-quests-dialog">
+              <span class="lobby-option-kicker">Daily rewards</span><strong>Daily challenges</strong><span>Complete quests and claim gold each day.</span>
+            </button>
             <button id="multiplayer-button" class="lobby-option" type="button">
               <span class="lobby-option-kicker">Play together</span><strong>Multiplayer</strong><span>Team up and take on bosses in real time.</span>
             </button>
@@ -324,7 +327,7 @@
           <h2 id="store-title">Store</h2>
           <p class="screen-description">Customize how your adventurer appears around the game.</p>
           <p class="store-currency">Available currency <strong id="store-currency">0</strong></p>
-          <p class="store-earning-note">Earn 10 currency when you clear an entire dungeon.</p>
+          <p class="store-earning-note">Earn 10 gold when you clear an entire dungeon. Daily quests award 100 gold each.</p>
           <div class="store-tabs" role="tablist" aria-label="Store categories">
             <button id="store-tab-title" class="store-tab" type="button" role="tab" aria-selected="true" aria-controls="store-panel-title">Title</button>
             <button id="store-tab-avatar" class="store-tab" type="button" role="tab" aria-selected="false" aria-controls="store-panel-avatar" tabindex="-1">Avatar</button>
@@ -487,6 +490,24 @@
 
       </section>
     </main>
+    <dialog id="daily-quests-dialog" class="daily-quests-dialog" aria-labelledby="daily-quests-title">
+      <section class="daily-quests" aria-labelledby="daily-quests-title">
+        <header class="daily-quests-heading">
+          <div>
+            <p class="eyebrow">Daily challenges</p>
+            <h2 id="daily-quests-title">Today’s quests</h2>
+          </div>
+          <svg class="daily-quests-scroll-art" viewBox="0 0 128 96" aria-hidden="true">
+            <path d="M29 12h70a8 8 0 0 1 0 16v40a8 8 0 1 1 0 16H29a8 8 0 1 1 0-16V28a8 8 0 0 1 0-16Z" fill="#e9c995" stroke="#a87547" stroke-width="4" />
+            <path d="M43 40h42M43 51h34M43 62h39" fill="none" stroke="#9e7048" stroke-linecap="round" stroke-width="4" />
+            <path d="M29 12a8 8 0 0 0 0 16v40a8 8 0 1 0 0 16M99 12a8 8 0 0 1 0 16v40a8 8 0 1 0 0 16" fill="none" stroke="#f7dfb4" stroke-width="3" />
+          </svg>
+          <button id="daily-quests-close" class="button button-quiet" type="button">Close</button>
+          <p id="daily-quest-status" role="status" aria-live="polite"></p>
+        </header>
+        <div id="daily-quest-list" class="daily-quest-list" role="region" tabindex="0" aria-label="Daily challenge progress"></div>
+      </section>
+    </dialog>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

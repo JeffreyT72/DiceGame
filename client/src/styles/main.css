@@ -1166,6 +1166,130 @@ h1 {
   object-position: center;
 }
 
+.daily-quests {
+  display: flex;
+  max-height: calc(100dvh - 76px);
+  flex-direction: column;
+}
+
+.daily-quests-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.daily-quests-heading h2 {
+  margin: 4px 0 0;
+  font-size: 1.45rem;
+}
+
+.daily-quests-dialog {
+  width: min(680px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  padding: 22px;
+  overflow: hidden;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 20px;
+  background: linear-gradient(145deg, #211722, #130e15);
+  color: var(--color-text);
+  box-shadow: 0 24px 80px #000b;
+}
+
+.daily-quests-dialog[open] {
+  animation: daily-quests-pop-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.daily-quests-dialog::backdrop {
+  background: rgb(5 3 8 / 78%);
+  backdrop-filter: blur(5px);
+}
+
+.daily-quests-scroll-art {
+  width: 76px;
+  height: 60px;
+}
+
+#daily-quest-status {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.daily-quest-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  min-height: 0;
+  flex: 1 1 auto;
+  max-height: min(58vh, 520px);
+  padding: 2px 6px 6px 2px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: var(--color-border-strong) transparent;
+}
+
+.daily-quest-list:focus-visible {
+  outline: 2px solid var(--color-accent-bright);
+  outline-offset: -2px;
+}
+
+.daily-quest-card {
+  display: grid;
+  align-content: start;
+  gap: 9px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: linear-gradient(145deg, #251923, #1c131b);
+}
+
+.daily-quest-card h3,
+.daily-quest-card p {
+  margin: 0;
+}
+
+.daily-quest-card h3 {
+  font-size: 0.95rem;
+}
+
+.daily-quest-card progress {
+  width: 100%;
+  accent-color: var(--color-accent-bright);
+}
+
+.daily-quest-card p {
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+}
+
+.daily-quest-card .button {
+  justify-self: start;
+  min-height: 34px;
+  padding: 5px 12px;
+}
+
+.daily-quest-card .button:disabled {
+  cursor: default;
+  opacity: 0.65;
+}
+
+@keyframes daily-quests-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 .lobby-options {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2140,9 +2264,23 @@ h1 {
   .lobby-options {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
 }
 
 @media (max-width: 560px) {
+  .daily-quests-dialog {
+    padding: 18px;
+  }
+
+  .daily-quests-scroll-art {
+    width: 52px;
+    height: 44px;
+  }
+
+  .daily-quests-heading h2 {
+    font-size: 1.2rem;
+  }
+
   .settings-heading {
     align-items: flex-start;
     flex-direction: column;
@@ -2287,6 +2425,9 @@ h1 {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .daily-quests-dialog[open] {
+    animation-duration: 1ms;
+  }
   .lobby-cta,
   .lobby-option {
     transition: none;

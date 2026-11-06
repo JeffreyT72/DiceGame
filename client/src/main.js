@@ -9,6 +9,7 @@ import { outcomeMessage, resolveCombatRound } from './game/combat.js';
 import { createAuthController } from './ui/auth.js';
 import { createCharacterLab } from './ui/character-lab.js';
 import { createDungeonCatalog } from './ui/dungeon-catalog.js';
+import { createDailyQuestController } from './ui/daily-quests.js';
 import { createGameSettings } from './ui/game-settings.js';
 import { createLeaderboardController } from './ui/leaderboard.js';
 import { createLootRenderer } from './ui/loot.js';
@@ -87,6 +88,13 @@ const tableThemeStatus = document.querySelector('#table-theme-status');
 const titleList = document.querySelector('#title-list');
 const titleStatus = document.querySelector('#title-status');
 const lobbyPlayerTitle = document.querySelector('#lobby-player-title');
+const dailyQuestsDialog = document.querySelector('#daily-quests-dialog');
+document.querySelector('#daily-challenges-button').addEventListener('click', () => {
+  dailyQuestsDialog.showModal();
+});
+document.querySelector('#daily-quests-close').addEventListener('click', () => {
+  dailyQuestsDialog.close();
+});
 const characterSelect = document.querySelector('#character-select');
 const characterStatus = document.querySelector('#character-status');
 characterSelect.replaceChildren(...characters.map(({ id, name }) => {
@@ -615,7 +623,11 @@ async function startHand(percentage) {
     clearCurrentHand();
     renderControls();
     status.textContent = 'Dealing your opening hand…';
-    const { game: newGame } = await request('/api/games', { method: 'POST' });
+    const { game: newGame } = await request('/api/games', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ wagerPercentage: percentage }),
+    });
     render(newGame);
   } catch (error) {
     runState.playerHp += hpStake;
@@ -756,6 +768,7 @@ async function enterGame(account) {
   lobbyPlayerTitle.textContent = activeTitle;
   game?.battlefield.scene.getScene('blackjack')?.setTitle(activeTitle);
   screens.show('lobby');
+  await dailyQuests.refresh();
   renderProgression();
 }
 
@@ -921,6 +934,7 @@ multiplayer = createMultiplayerController({
 });
 const screens = createScreenController({
   onQuitDungeon: quitDungeon,
+  onShowLobby: () => dailyQuests.refresh(),
   onOpenLab: renderProgression,
   onOpenLeaderboard: leaderboard.open,
   onOpenMultiplayer: multiplayer.open,
@@ -966,6 +980,12 @@ const screens = createScreenController({
     renderCurrency();
     renderTableThemes();
     renderTitles();
+  },
+});
+const dailyQuests = createDailyQuestController({
+  onCurrencyUpdated: (currency) => {
+    currentStats.currency = currency;
+    renderCurrency();
   },
 });
 const auth = createAuthController({

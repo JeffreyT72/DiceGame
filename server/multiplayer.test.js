@@ -5,6 +5,7 @@ import { MultiplayerRooms } from './multiplayer.js';
 import {
   dungeons_multiplayer,
   getDungeonMonster,
+  getDungeonStageCount,
   getMultiplayerMonsterHp,
 } from '../shared/dungeon-multiplayer-config.js';
 
@@ -41,8 +42,10 @@ function createRoomFixture(options = {}) {
   let nextTimerId = 0;
   const timers = new Map();
   const rewards = [];
+  const activities = [];
   const rooms = new MultiplayerRooms({
     awardMonster: (playerId, completionBonus) => rewards.push({ playerId, completionBonus }),
+    recordActivity: (playerId, type) => activities.push({ playerId, type }),
     createHand: options.createHand ?? testHand,
     randomRoomCode: () => 'ABC234',
     now: () => 1_000,
@@ -61,7 +64,7 @@ function createRoomFixture(options = {}) {
   players.forEach((player, index) => rooms.connect(player, sockets[index]));
   sockets[0].receive({ type: 'create_room' });
   sockets[1].receive({ type: 'join_room', code: 'abc234' });
-  return { rooms, sockets, players, timers, rewards };
+  return { rooms, sockets, players, timers, rewards, activities };
 }
 
 function latestRoomState(socket) {
@@ -73,6 +76,83 @@ function startRound(sockets) {
   sockets[0].receive({ type: 'bet', percentage: 0 });
   sockets[1].receive({ type: 'bet', percentage: 0 });
 }
+
+test('records multiplayer rounds, bets, dealer busts, and accepted double downs', () => {
+  const { rooms, sockets, activities } = createRoomFixture({
+    createHand: () => ({
+      ...testHand(),
+      dealerHand: [
+        { rank: '10', suit: 'clubs' },
+        { rank: '6', suit: 'clubs' },
+      ],
+      deck: [],
+    }),
+  });
+  sockets[0].receive({ type: 'start_game' });
+  sockets[0].receive({ type: 'bet', percentage: 0.1 });
+  sockets[1].receive({ type: 'bet', percentage: 0 });
+
+  assert.equal(activities.filter(({ type }) => type === 'start_rounds').length, 2);
+  assert.equal(activities.filter(({ type }) => type === 'place_bets').length, 1);
+  const room = [...rooms.rooms.values()][0];
+  room.dealerDeck.push({ rank: '10', suit: 'spades' });
+  rooms.resolveRound(room);
+  assert.equal(activities.filter(({ type }) => type === 'win_rounds').length, 2);
+  assert.equal(activities.filter(({ type }) => type === 'dealer_busts').length, 2);
+
+  const doubled = createRoomFixture({
+    createHand: () => ({
+      ...testHand(),
+      deck: [{ rank: '2', suit: 'clubs' }],
+    }),
+  });
+  startRound(doubled.sockets);
+  doubled.sockets[0].receive({ type: 'action', action: 'double_down' });
+  assert.equal(doubled.activities.filter(({ type }) => type === 'double_down').length, 1);
+});
+
+test('records accepted splits and multiplayer monster and boss defeats', () => {
+  const { rooms, sockets, activities } = createRoomFixture({
+    createHand: () => ({
+      ...testHand(),
+      deck: [
+        { rank: '2', suit: 'clubs' },
+        { rank: '3', suit: 'clubs' },
+      ],
+      playerHand: [
+        { rank: '10', suit: 'hearts' },
+        { rank: '10', suit: 'spades' },
+      ],
+    }),
+  });
+  sockets[0].receive({ type: 'start_game' });
+  sockets[0].receive({ type: 'bet', percentage: 0.1 });
+  sockets[1].receive({ type: 'bet', percentage: 0 });
+  sockets[0].receive({ type: 'action', action: 'split' });
+  assert.equal(activities.filter(({ playerId, type }) => (
+    playerId === 'player-1' && type === 'split'
+  )).length, 1);
+
+  const room = rooms.rooms.get('ABC234');
+  room.stage = getDungeonStageCount(room.dungeon);
+  rooms.finishMonster(room);
+  assert.equal(activities.filter(({ type }) => type === 'defeat_monster').length, 2);
+  assert.equal(activities.filter(({ type }) => type === 'defeat_boss').length, 2);
+});
+
+test('records natural blackjacks in multiplayer rounds', () => {
+  const { sockets, activities } = createRoomFixture({
+    createHand: () => ({
+      ...testHand(),
+      playerHand: [
+        { rank: 'A', suit: 'hearts' },
+        { rank: '10', suit: 'hearts' },
+      ],
+    }),
+  });
+  startRound(sockets);
+  assert.equal(activities.filter(({ type }) => type === 'blackjack').length, 2);
+});
 
 test('round waits for all player decisions before reveal, then battle and shared-timer loot', () => {
   const { rooms, sockets, timers, rewards } = createRoomFixture();

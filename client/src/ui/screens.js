@@ -4,6 +4,7 @@ export function createScreenController({
   onOpenLeaderboard,
   onOpenMultiplayer,
   onOpenDungeons,
+  onShowLobby = () => {},
   onStartTower,
   onOpenCharacter,
   onOpenStore,
@@ -89,6 +90,7 @@ export function createScreenController({
   document.querySelectorAll('[data-back-to-lobby]').forEach((button) => {
     button.addEventListener('click', () => {
       show('lobby');
+      onShowLobby();
       if (screens.dungeon.contains(button)) onQuitDungeon();
     });
   });

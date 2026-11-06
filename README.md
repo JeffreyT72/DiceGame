@@ -9,6 +9,7 @@ Blackjack Survivors is a browser-based dungeon game where blackjack hands decide
 - Blackjack combat actions including hit, stand, double down, split, wagers, and character-stat bonuses.
 - Multiplayer rooms for up to four signed-in players, with shared encounters and turn-based rounds.
 - Character and table customization, a store, and leaderboards.
+- Five daily quests are randomly selected from ten possible blackjack, betting, double-down, dealer-bust, split, monster, boss, and dungeon-clear goals. Each completed quest can be claimed for 100 gold; quests reset at midnight UTC.
 
 ## Requirements
 

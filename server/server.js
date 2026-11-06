@@ -16,6 +16,7 @@ import { WebSocketServer } from 'ws';
 import {
   applyAction,
   createGameState,
+  handValue,
   newGameId,
   toPublicGame,
 } from './blackjack.js';
@@ -31,6 +32,7 @@ import { getTitle, titles } from '../shared/titles.js';
 import { getTowerEncounter, getTowerFloorExpReward } from '../shared/tower-config.js';
 import { MultiplayerRooms } from './multiplayer.js';
 import { createTowerRunStore } from './tower-runs.js';
+import { createDailyQuestStore } from './daily-quests.js';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const currencyRewardPerDungeon = 10;
@@ -43,10 +45,17 @@ database.exec(`
   CREATE TABLE IF NOT EXISTS blackjack_games (
     id TEXT PRIMARY KEY,
     state TEXT NOT NULL,
+    user_id TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   )
 `);
+const existingBlackjackColumns = new Set(
+  database.prepare('PRAGMA table_info(blackjack_games)').all().map(({ name }) => name),
+);
+if (!existingBlackjackColumns.has('user_id')) {
+  database.exec('ALTER TABLE blackjack_games ADD COLUMN user_id TEXT');
+}
 
 const playerDatabasePath = resolve(
   projectRoot,
@@ -235,6 +244,7 @@ playerDatabase.exec(`
   WHERE character_name IS NULL OR character_name = ''
 `);
 playerDatabase.pragma('foreign_keys = ON');
+const dailyQuests = createDailyQuestStore(playerDatabase);
 playerDatabase.prepare('DELETE FROM player_sessions WHERE expires_at <= ?')
   .run(new Date().toISOString());
 const existingDungeonRunColumns = new Set(
@@ -722,6 +732,21 @@ app.get('/api/player/stats', requirePlayer, (request, response) => {
   response.json({ stats: playerStats(request.playerId) });
 });
 
+app.get('/api/player/daily-quests', requirePlayer, (request, response) => {
+  response.json({
+    quests: dailyQuests.list(request.playerId),
+    currency: playerStats(request.playerId).currency,
+  });
+});
+
+app.post('/api/player/daily-quests/:type/claim', requirePlayer, (request, response) => {
+  const result = dailyQuests.claim(request.playerId, request.params.type);
+  if (result.error) {
+    return response.status(result.status).json({ error: result.error });
+  }
+  response.json({ ...result, quests: dailyQuests.list(request.playerId) });
+});
+
 const costumeCharacters = new Set(['adventurer', 'adventurer-male', 'mel', 'body', 'testing', 'chibi']);
 
 app.patch('/api/player/costume', requirePlayer, (request, response) => {
@@ -991,7 +1016,7 @@ app.post('/api/tower-runs/:id/clear-floor', requirePlayer, (request, response) =
   }
 
   const game = findGame(gameId);
-  if (!game) {
+  if (!game || (game.userId && game.userId !== request.playerId)) {
     return response.status(404).json({ error: 'Battle not found.' });
   }
   const gameState = JSON.parse(game.state);
@@ -1171,6 +1196,11 @@ app.post('/api/dungeons/:id/clear-stage', requirePlayer, (request, response) => 
       stage === stageCount ? currencyRewardPerDungeon : 0,
       request.playerId,
     );
+    if (stage === stageCount) {
+      dailyQuests.record(request.playerId, 'clear_dungeon');
+      dailyQuests.record(request.playerId, 'defeat_boss');
+    }
+    dailyQuests.record(request.playerId, 'defeat_monster');
     return expAwarded;
   });
   const expAwarded = clearStage();
@@ -1256,18 +1286,40 @@ function getLevel(totalExp) {
 
 function findGame(id) {
   return database.prepare(`
-    SELECT id, state, created_at AS createdAt, updated_at AS updatedAt
+    SELECT id, state, user_id AS userId, created_at AS createdAt, updated_at AS updatedAt
     FROM blackjack_games
     WHERE id = ?
   `).get(id);
 }
 
-app.post('/api/games', (_request, response) => {
+function recordBlackjackOutcome(userId, state) {
+  if (state.status !== 'complete') return;
+  if (!state.hands && state.playerHand.length === 2 && handValue(state.playerHand) === 21) {
+    dailyQuests.record(userId, 'blackjack');
+  }
+  if (['player_blackjack', 'player_win', 'dealer_bust'].includes(state.outcome)) {
+    dailyQuests.record(userId, 'win_rounds');
+  }
+  if (state.outcome === 'dealer_bust' || state.hands?.some(({ outcome }) => outcome === 'dealer_bust')) {
+    dailyQuests.record(userId, 'dealer_busts');
+  }
+}
+
+app.post('/api/games', requirePlayer, (request, response) => {
+  const wagerPercentage = request.body?.wagerPercentage ?? 0;
+  if (![0, 0.1, 0.25, 0.5].includes(wagerPercentage)) {
+    return response.status(400).json({ error: 'Choose a valid wager.' });
+  }
   const id = newGameId();
   const state = createGameState();
   database.prepare(`
-    INSERT INTO blackjack_games (id, state) VALUES (?, ?)
-  `).run(id, JSON.stringify(state));
+    INSERT INTO blackjack_games (id, state, user_id) VALUES (?, ?, ?)
+  `).run(id, JSON.stringify(state), request.playerId);
+  dailyQuests.record(request.playerId, 'start_rounds');
+  if (wagerPercentage > 0) {
+    dailyQuests.record(request.playerId, 'place_bets');
+  }
+  recordBlackjackOutcome(request.playerId, state);
   const game = findGame(id);
 
   response.status(201).json({
@@ -1275,13 +1327,14 @@ app.post('/api/games', (_request, response) => {
   });
 });
 
-app.post('/api/games/:id/actions', (request, response) => {
+app.post('/api/games/:id/actions', requirePlayer, (request, response) => {
   const game = findGame(request.params.id);
-  if (!game) {
+  if (!game || game.userId !== request.playerId) {
     return response.status(404).json({ error: 'Game not found.' });
   }
 
   const state = JSON.parse(game.state);
+  const wasPlaying = state.status === 'playing';
   const result = applyAction(state, request.body?.action);
   if (result.error) {
     return response.status(result.status).json({ error: result.error });
@@ -1293,6 +1346,15 @@ app.post('/api/games/:id/actions', (request, response) => {
     SET state = ?, updated_at = ?
     WHERE id = ?
   `).run(JSON.stringify(result.state), updatedAt, game.id);
+  if (request.body?.action === 'double_down') {
+    dailyQuests.record(request.playerId, 'double_down');
+  }
+  if (request.body?.action === 'split') {
+    dailyQuests.record(request.playerId, 'split');
+  }
+  if (wasPlaying) {
+    recordBlackjackOutcome(request.playerId, result.state);
+  }
 
   response.json({
     game: toPublicGame(game.id, result.state, game.createdAt, updatedAt),
@@ -1309,6 +1371,9 @@ app.use((error, _request, response, _next) => {
 const httpServer = createServer(app);
 const webSocketServer = new WebSocketServer({ noServer: true, maxPayload: 8 * 1024 });
 const multiplayerRooms = new MultiplayerRooms({
+  recordActivity(userId, type) {
+    dailyQuests.record(userId, type);
+  },
   awardMonster(userId, completionBonus) {
     const stats = playerDatabase.prepare(`
       SELECT total_exp AS totalExp FROM player_stats WHERE user_id = ?

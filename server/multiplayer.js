@@ -59,6 +59,7 @@ export class MultiplayerRooms {
     cancel = clearTimeout,
     createHand = createGameState,
     randomRoomCode = makeRoomCode,
+    recordActivity = () => {},
   }) {
     this.awardMonster = awardMonster;
     this.now = now;
@@ -66,6 +67,7 @@ export class MultiplayerRooms {
     this.cancel = cancel;
     this.createHand = createHand;
     this.randomRoomCode = randomRoomCode;
+    this.recordActivity = recordActivity;
     this.rooms = new Map();
     this.connections = new Map();
   }
@@ -295,6 +297,7 @@ export class MultiplayerRooms {
     player.originalBetHp = stake;
     player.playerHp -= stake;
     player.betPlaced = true;
+    if (percentage > 0) this.recordActivity(player.id, 'place_bets');
     if ([...room.players.values()].every((member) => !member.alive || member.betPlaced)) {
       this.dealRound(room);
       return;
@@ -311,6 +314,7 @@ export class MultiplayerRooms {
     let firstState = null;
     for (const player of room.players.values()) {
       if (!player.alive) continue;
+      this.recordActivity(player.id, 'start_rounds');
       const state = firstState
         ? this.createHand({
           dealerHand: room.dealerHand,
@@ -369,6 +373,8 @@ export class MultiplayerRooms {
       this.sendError(connection.socket, result.error);
       return;
     }
+    if (action === 'double_down') this.recordActivity(player.id, 'double_down');
+    if (action === 'split') this.recordActivity(player.id, 'split');
     if (action === 'split') {
       player.playerHp -= player.originalBetHp;
       player.betHp += player.originalBetHp;
@@ -406,6 +412,22 @@ export class MultiplayerRooms {
     for (const player of room.players.values()) {
       if (!player.alive || !player.hand) continue;
       resolveHandOutcome(player.hand.state);
+      if (
+        !player.hand.state.hands
+        && player.hand.state.playerHand.length === 2
+        && handValue(player.hand.state.playerHand) === 21
+      ) {
+        this.recordActivity(player.id, 'blackjack');
+      }
+      if (['player_blackjack', 'player_win', 'dealer_bust'].includes(player.hand.state.outcome)) {
+        this.recordActivity(player.id, 'win_rounds');
+      }
+      if (
+        player.hand.state.outcome === 'dealer_bust'
+        || player.hand.state.hands?.some(({ outcome }) => outcome === 'dealer_bust')
+      ) {
+        this.recordActivity(player.id, 'dealer_busts');
+      }
     }
     for (const player of room.players.values()) {
       if (player.alive && player.hand) this.resolveHand(room, player);
@@ -528,6 +550,8 @@ export class MultiplayerRooms {
     const finalStage = room.stage === getDungeonStageCount(room.dungeon);
     for (const player of room.players.values()) {
       if (player.alive) {
+        this.recordActivity(player.id, 'defeat_monster');
+        if (finalStage) this.recordActivity(player.id, 'defeat_boss');
         player.progression = this.awardMonster(player.id, finalStage ? room.dungeon.rewardExp : 0);
       }
     }
