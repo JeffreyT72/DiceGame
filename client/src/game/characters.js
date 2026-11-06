@@ -12,6 +12,8 @@ export const characterSpriteLayout = {
   frameTop: 45,
 };
 
+export const defaultCharacter = 'chibi';
+
 export const characters = [
   { id: 'adventurer', name: 'Adventurer', spriteSheet: adventurerSpriteSheet },
   { id: 'adventurer-male', name: 'Adventurer (Male)', spriteSheet: maleAdventurerSpriteSheet },

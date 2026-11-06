@@ -145,5 +145,7 @@ test('paper-doll tops are validated and persisted per account', async (t) => {
   assert.equal((await updateResponse.json()).stats.top, 'azure');
 
   const statsResponse = await fetch(`${baseUrl}/api/player/stats`, requestOptions);
-  assert.equal((await statsResponse.json()).stats.top, 'azure');
+  const { stats } = await statsResponse.json();
+  assert.equal(stats.top, 'azure');
+  assert.equal(stats.character, 'chibi');
 });

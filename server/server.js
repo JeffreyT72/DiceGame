@@ -89,7 +89,7 @@ playerDatabase.exec(`
     pushes INTEGER NOT NULL DEFAULT 0 CHECK (pushes >= 0),
     monsters_defeated INTEGER NOT NULL DEFAULT 0 CHECK (monsters_defeated >= 0),
     character_name TEXT NOT NULL DEFAULT '',
-    character TEXT NOT NULL DEFAULT 'adventurer',
+    character TEXT NOT NULL DEFAULT 'chibi',
     top TEXT NOT NULL DEFAULT '${defaultPaperDollTop}',
     title TEXT NOT NULL DEFAULT '0',
     frame TEXT NOT NULL DEFAULT '',
@@ -656,7 +656,7 @@ app.post('/api/auth/signup', async (request, response) => {
         VALUES (?, ?, ?, ?, ?, 1)
       `).run(userId, username, email, passwordHash.toString('hex'), salt);
       playerDatabase.prepare(`
-        INSERT INTO player_stats (user_id, character_name) VALUES (?, ?)
+        INSERT INTO player_stats (user_id, character_name, character) VALUES (?, ?, 'chibi')
       `).run(userId, characterName);
     });
     createAccount();

@@ -1,6 +1,6 @@
 import './styles/main.css';
 import { createBlackjackGame } from './game/blackjack-scene.js';
-import { characters } from './game/characters.js';
+import { characters, defaultCharacter } from './game/characters.js';
 import { createInfiniteTowerMode } from './game/infinite-tower.js';
 import deepTealPreview from './assets/tables/static/062633.png';
 import berryPreview from './assets/tables/static/630632.png';
@@ -53,7 +53,7 @@ let currentStats = {
   luck: 0,
   currency: 0,
   availableStatPoints: 0,
-  character: characters[0].id,
+  character: defaultCharacter,
   top: defaultPaperDollTop,
   title: '0',
   frame: '',
@@ -109,7 +109,8 @@ const paperDollCustomizer = createPaperDollCustomizer({
   statusElement: document.querySelector('#paper-doll-preview-status'),
 });
 
-let selectedCharacter = characters[0].id;
+let selectedCharacter = defaultCharacter;
+characterSelect.value = selectedCharacter;
 let selectedTop = defaultPaperDollTop;
 let characterSettingsMessage = '';
 let tableThemeMessage = '';
@@ -754,7 +755,7 @@ async function enterGame(account) {
   titleMessage = '';
   selectedCharacter = characters.some(({ id }) => id === currentStats.character)
     ? currentStats.character
-    : characters[0].id;
+    : defaultCharacter;
   selectedTop = getPaperDollTop(currentStats.top)?.id ?? defaultPaperDollTop;
   characterSelect.value = selectedCharacter;
   paperDollCustomizer.render(selectedCharacter, selectedTop);

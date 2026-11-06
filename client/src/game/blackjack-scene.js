@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { characters, characterSpriteLayout } from './characters.js';
+import { characters, characterSpriteLayout, defaultCharacter } from './characters.js';
 import { PaperDoll } from './paper-doll.js';
 import { drawPaperDollTop } from './paper-doll-tops.js';
 import { defaultPaperDollTop, getPaperDollTop } from '../../../shared/paper-doll.js';
@@ -93,7 +93,8 @@ class BlackjackScene extends Phaser.Scene {
 
     const sheet = this.textures.get(`hero-sprite-sheet-${characterId}`).getSourceImage();
     const canvas = document.createElement('canvas');
-    const character = characters.find(({ id }) => id === characterId) ?? characters[0];
+    const character = characters.find(({ id }) => id === characterId)
+      ?? characters.find(({ id }) => id === defaultCharacter);
     const layout = character.spriteLayout ?? characterSpriteLayout;
     const { idleFrames, frameWidth, frameHeight, frameTop } = layout;
     const animations = {
@@ -193,7 +194,8 @@ class BlackjackScene extends Phaser.Scene {
   }
 
   setHeroAnimation(animation) {
-    const character = characters.find(({ id }) => id === this.selectedCharacter) ?? characters[0];
+    const character = characters.find(({ id }) => id === this.selectedCharacter)
+      ?? characters.find(({ id }) => id === defaultCharacter);
     const layout = character.spriteLayout ?? characterSpriteLayout;
     if (layout.animationRows?.[animation] === undefined) return;
 
@@ -229,7 +231,8 @@ class BlackjackScene extends Phaser.Scene {
   }
 
   setCharacter(characterId) {
-    const character = characters.find(({ id }) => id === characterId) ?? characters[0];
+    const character = characters.find(({ id }) => id === characterId)
+      ?? characters.find(({ id }) => id === defaultCharacter);
     this.selectedCharacter = character.id;
     this.registry.set('selectedCharacter', character.id);
     this.heroAnimationTimer?.remove(false);
@@ -338,7 +341,8 @@ class BlackjackScene extends Phaser.Scene {
   drawHero(x, y) {
     this.add.ellipse(x, y + 66, 86, 16, 0x062d23, 0.8);
     this.paperDoll = new PaperDoll(this, x, y);
-    const character = characters.find(({ id }) => id === this.selectedCharacter) ?? characters[0];
+    const character = characters.find(({ id }) => id === this.selectedCharacter)
+      ?? characters.find(({ id }) => id === defaultCharacter);
     const layout = character.spriteLayout ?? characterSpriteLayout;
     this.paperDoll.setLayer(
       'body',
