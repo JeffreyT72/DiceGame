@@ -33,6 +33,7 @@ import { getTowerEncounter, getTowerFloorExpReward } from '../shared/tower-confi
 import { MultiplayerRooms } from './multiplayer.js';
 import { createTowerRunStore } from './tower-runs.js';
 import { createDailyQuestStore } from './daily-quests.js';
+import { createLeaderboard } from './leaderboard.js';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const currencyRewardPerDungeon = 10;
@@ -245,6 +246,15 @@ playerDatabase.exec(`
 `);
 playerDatabase.pragma('foreign_keys = ON');
 const dailyQuests = createDailyQuestStore(playerDatabase);
+let redis = null;
+if (process.env.REDIS_URL) {
+  const { createClient } = await import('redis');
+  redis = createClient({ url: process.env.REDIS_URL });
+  redis.on('error', (error) => console.error('Redis error:', error.message));
+  // Not awaited: the leaderboard reads SQLite until Redis is ready.
+  redis.connect().catch((error) => console.error('Redis connect failed:', error.message));
+}
+const leaderboard = createLeaderboard(playerDatabase, redis);
 playerDatabase.prepare('DELETE FROM player_sessions WHERE expires_at <= ?')
   .run(new Date().toISOString());
 const existingDungeonRunColumns = new Set(
@@ -913,24 +923,8 @@ app.patch('/api/player/table-theme', requirePlayer, (request, response) => {
   response.json({ stats: playerStats(request.playerId) });
 });
 
-app.get('/api/player/leaderboard', requirePlayer, (_request, response) => {
-  const experience = playerDatabase.prepare(`
-    SELECT COALESCE(NULLIF(player_stats.character_name, ''), users.username) AS username,
-      COALESCE(player_stats.total_exp, 0) AS totalExp
-    FROM users
-    LEFT JOIN player_stats ON player_stats.user_id = users.id
-    WHERE users.active = 1
-    ORDER BY totalExp DESC, username COLLATE NOCASE ASC
-  `).all();
-  const monstersDefeated = playerDatabase.prepare(`
-    SELECT COALESCE(NULLIF(player_stats.character_name, ''), users.username) AS username,
-      COALESCE(player_stats.monsters_defeated, 0) AS monstersDefeated
-    FROM users
-    LEFT JOIN player_stats ON player_stats.user_id = users.id
-    WHERE users.active = 1
-    ORDER BY monstersDefeated DESC, username COLLATE NOCASE ASC
-  `).all();
-  response.json({ experience, monstersDefeated });
+app.get('/api/player/leaderboard', requirePlayer, async (request, response) => {
+  response.json(await leaderboard.get(request.playerId));
 });
 
 const statColumns = {

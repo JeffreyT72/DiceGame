@@ -1393,6 +1393,16 @@ h1 {
   list-style: none;
 }
 
+.leaderboard-list li.leaderboard-self {
+  border-color: var(--color-accent-bright);
+  background: var(--color-magenta-glow);
+}
+
+/* Only the player's own row below the top 50 carries an explicit value. */
+.leaderboard-list li.leaderboard-self[value] {
+  margin-top: 12px;
+}
+
 .screen-back {
   margin-bottom: 18px;
 }

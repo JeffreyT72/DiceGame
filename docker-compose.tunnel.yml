@@ -5,12 +5,21 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      - redis
     volumes:
       - ./data:/app/data
     networks:
+      default:
       tunnel:
         aliases:
           - blackjack
+
+  # Leaderboard cache only; safe to lose, so no volume. Not on the tunnel network.
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
 
 networks:
   tunnel:
