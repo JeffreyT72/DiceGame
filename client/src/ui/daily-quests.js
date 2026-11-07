@@ -3,9 +3,11 @@ import { request } from '../services/api.js';
 export function createDailyQuestController({ onCurrencyUpdated }) {
   const list = document.querySelector('#daily-quest-list');
   const status = document.querySelector('#daily-quest-status');
+  const questsButton = document.querySelector('#daily-challenges-button');
   let quests = [];
 
   function render() {
+    questsButton.toggleAttribute('data-alert', quests.some(({ completed, claimed }) => completed && !claimed));
     list.replaceChildren(...quests.map((quest) => {
       const card = document.createElement('article');
       card.className = 'daily-quest-card';

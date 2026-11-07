@@ -64,63 +64,23 @@
       </section>
 
       <section id="game-panel" hidden>
-        <div class="account-bar">
-          <span>Playing as <strong id="account-name"></strong></span>
-          <button id="signout-button" class="button button-quiet" type="button">Exit</button>
-        </div>
-
-        <section id="lobby-screen" class="screen-panel" aria-labelledby="lobby-title">
-          <div class="lobby-heading">
-            <div>
-              <p class="eyebrow">Your next hand awaits</p>
-              <h2 id="lobby-title">The table is yours.</h2>
-              <p class="lobby-player-title">Current title <strong id="lobby-player-title"></strong></p>
-              <p class="screen-description">Play your cards. Outlast the monsters. Become a legend.</p>
-            </div>
-            <div class="lobby-status" aria-label="Adventurer progress">
-              <p class="lobby-level"><span>Adventurer rank</span><strong id="lobby-level">Level 1</strong></p>
-              <p class="lobby-currency"><span>Gold pouch</span><strong id="lobby-currency">0</strong></p>
-            </div>
-          </div>
-          <section class="lobby-hero" aria-label="Start a dungeon run">
-            <div class="lobby-hero-copy">
-              <p class="lobby-hero-kicker">Blackjack meets the dungeon</p>
-              <h3>One hand from glory.</h3>
-              <p>Push your luck against fearsome foes, claim powerful upgrades, and see how deep your run can go.</p>
-              <button id="start-game-button" class="lobby-cta" type="button">
-                Choose your dungeon <span aria-hidden="true">→</span>
-              </button>
-            </div>
-            <div class="lobby-hero-art" aria-hidden="true">
-              <img src="/src/assets/banners/44d71b43-025f-4677-a072-b7d9a13e1e96.png" alt="" loading="lazy" decoding="async" />
-            </div>
-          </section>
-          <nav class="lobby-options" aria-label="Game menu">
-            <button id="daily-challenges-button" class="lobby-option" type="button" aria-haspopup="dialog" aria-controls="daily-quests-dialog">
-              <span class="lobby-option-kicker">Daily rewards</span><strong>Daily challenges</strong><span>Complete quests and claim gold each day.</span>
-            </button>
-            <button id="multiplayer-button" class="lobby-option" type="button">
-              <span class="lobby-option-kicker">Play together</span><strong>Multiplayer</strong><span>Team up and take on bosses in real time.</span>
-            </button>
-            <button id="lab-button" class="lobby-option" type="button">
-              <span class="lobby-option-kicker">Permanent upgrades</span><strong>Character lab</strong><span>Spend your hard-earned stat points.</span>
-            </button>
-            <button id="store-button" class="lobby-option" type="button">
-              <span class="lobby-option-kicker">Spend your gold</span><strong>Adventurer store</strong><span>Find titles, avatars, and frames.</span>
-            </button>
-            <button id="leaderboard-button" class="lobby-option" type="button">
-              <span class="lobby-option-kicker">Hall of legends</span><strong>Leaderboard</strong><span>Top EXP, monster hunters and tower climbers.</span>
-            </button>
-            <button id="tower-button" class="lobby-option" type="button">
-              <span class="lobby-option-kicker">Endless climb</span><strong>Infinite Tower</strong><span>Survive the floors. Face a boss every ten levels.</span>
-            </button>
-            <button id="character-button" class="lobby-option" type="button">
-              <span class="lobby-option-kicker">Make it yours</span><strong>Character</strong><span>Choose your adventurer and customize their appearance.</span>
-            </button>
-            <button id="settings-button" class="lobby-option" type="button">
-              <span class="lobby-option-kicker">Game preferences</span><strong>Settings</strong><span>Adjust background music.</span>
-            </button>
+        <section id="lobby-screen" class="screen-panel lobby-screen" aria-labelledby="lobby-title">
+          <h2 id="lobby-title" class="visually-hidden">Main menu</h2>
+          <!-- Source of truth for the canvas menu: these hidden nodes carry the data, wiring and screen-reader names. -->
+          <p class="visually-hidden"><span id="account-name"></span>, <span id="lobby-level">Level 1</span>, <span id="lobby-currency">0</span> gold, <span id="lobby-player-title"></span></p>
+          <nav id="lobby-menu" class="visually-hidden" aria-label="Game menu">
+            <button id="start-game-button" type="button" data-menu="single">Single Player</button>
+            <button id="multiplayer-button" type="button" data-menu="multiplayer">Multiplayer</button>
+            <button id="tower-button" type="button" data-menu="tower">Infinite Tower</button>
+            <button id="daily-challenges-button" type="button" data-menu="quests" aria-haspopup="dialog" aria-controls="daily-quests-dialog">Daily challenges</button>
+            <button id="character-button" type="button" data-menu="character">Character</button>
+            <button id="lab-button" type="button" data-menu="lab">Lab</button>
+            <button id="store-button" type="button" data-menu="store">Store</button>
+            <button id="leaderboard-button" type="button" data-menu="leaderboard">Leaderboard</button>
+            <button id="settings-button" type="button" data-menu="settings">Settings</button>
+            <button id="signout-button" type="button" data-menu="exit">Exit</button>
           </nav>
+          <div id="menu-game" class="menu-game" aria-hidden="true"></div>
         </section>
 
         <section id="dungeon-catalog-screen" class="screen-panel" aria-labelledby="dungeon-catalog-title" hidden>
@@ -328,33 +288,61 @@
           <p class="screen-description">Customize how your adventurer appears around the game.</p>
           <p class="store-currency">Available currency <strong id="store-currency">0</strong></p>
           <p class="store-earning-note">Earn 10 gold when you clear an entire dungeon. Daily quests award 100 gold each.</p>
-          <div class="store-tabs" role="tablist" aria-label="Store categories">
-            <button id="store-tab-title" class="store-tab" type="button" role="tab" aria-selected="true" aria-controls="store-panel-title">Title</button>
-            <button id="store-tab-avatar" class="store-tab" type="button" role="tab" aria-selected="false" aria-controls="store-panel-avatar" tabindex="-1">Avatar</button>
-            <button id="store-tab-frame" class="store-tab" type="button" role="tab" aria-selected="false" aria-controls="store-panel-frame" tabindex="-1">Frame</button>
-            <button id="store-tab-table" class="store-tab" type="button" role="tab" aria-selected="false" aria-controls="store-panel-table" tabindex="-1">Table</button>
-          </div>
-          <div class="store-content">
-            <section id="store-panel-title" class="store-panel" role="tabpanel" aria-labelledby="store-tab-title">
-              <h3>Titles</h3>
-              <p>Purchase titles with currency and equip one to show it off.</p>
-              <div id="title-list" class="table-theme-list"></div>
-              <p id="title-status" class="table-theme-status" role="status" aria-live="polite"></p>
-            </section>
-            <section id="store-panel-avatar" class="store-panel" role="tabpanel" aria-labelledby="store-tab-avatar" hidden>
-              <h3>Avatars</h3>
-              <p>No avatars are available yet.</p>
-            </section>
-            <section id="store-panel-frame" class="store-panel" role="tabpanel" aria-labelledby="store-tab-frame" hidden>
-              <h3>Frames</h3>
-              <p>No frames are available yet.</p>
-            </section>
-            <section id="store-panel-table" class="store-panel" role="tabpanel" aria-labelledby="store-tab-table" hidden>
-              <h3>Tables</h3>
-              <p>Purchased table colors stay on your account. Apply any owned color to your card scene.</p>
-              <div id="table-theme-list" class="table-theme-list"></div>
-              <p id="table-theme-status" class="table-theme-status" role="status" aria-live="polite"></p>
-            </section>
+          <div class="settings-layout">
+            <div class="settings-navigation" role="tablist" aria-orientation="vertical" aria-label="Store categories">
+              <button id="store-tab-title" class="settings-navigation-item" type="button" role="tab" aria-selected="true" aria-controls="store-panel-title">
+                <span class="settings-navigation-icon" aria-hidden="true">♛</span>
+                <span><strong>Title</strong><small>Name badges</small></span>
+              </button>
+              <button id="store-tab-avatar" class="settings-navigation-item" type="button" role="tab" aria-selected="false" aria-controls="store-panel-avatar" tabindex="-1">
+                <span class="settings-navigation-icon" aria-hidden="true">☻</span>
+                <span><strong>Avatar</strong><small>Profile portraits</small></span>
+              </button>
+              <button id="store-tab-frame" class="settings-navigation-item" type="button" role="tab" aria-selected="false" aria-controls="store-panel-frame" tabindex="-1">
+                <span class="settings-navigation-icon" aria-hidden="true">▣</span>
+                <span><strong>Frame</strong><small>Portrait borders</small></span>
+              </button>
+              <button id="store-tab-table" class="settings-navigation-item" type="button" role="tab" aria-selected="false" aria-controls="store-panel-table" tabindex="-1">
+                <span class="settings-navigation-icon" aria-hidden="true">♣</span>
+                <span><strong>Table</strong><small>Card scene colors</small></span>
+              </button>
+            </div>
+            <div class="settings-content">
+              <section id="store-panel-title" class="store-panel" role="tabpanel" aria-labelledby="store-tab-title">
+                <header class="settings-category-heading">
+                  <div class="settings-category-icon" aria-hidden="true">♛</div>
+                  <div><h3>Titles</h3><p>Purchase titles with currency and equip one to show it off.</p></div>
+                </header>
+                <div class="settings-panel-body">
+                  <div id="title-list" class="table-theme-list"></div>
+                  <p id="title-status" class="table-theme-status" role="status" aria-live="polite"></p>
+                </div>
+              </section>
+              <section id="store-panel-avatar" class="store-panel" role="tabpanel" aria-labelledby="store-tab-avatar" hidden>
+                <header class="settings-category-heading">
+                  <div class="settings-category-icon" aria-hidden="true">☻</div>
+                  <div><h3>Avatars</h3><p>Profile portraits</p></div>
+                </header>
+                <div class="settings-panel-body"><p>No avatars are available yet.</p></div>
+              </section>
+              <section id="store-panel-frame" class="store-panel" role="tabpanel" aria-labelledby="store-tab-frame" hidden>
+                <header class="settings-category-heading">
+                  <div class="settings-category-icon" aria-hidden="true">▣</div>
+                  <div><h3>Frames</h3><p>Portrait borders</p></div>
+                </header>
+                <div class="settings-panel-body"><p>No frames are available yet.</p></div>
+              </section>
+              <section id="store-panel-table" class="store-panel" role="tabpanel" aria-labelledby="store-tab-table" hidden>
+                <header class="settings-category-heading">
+                  <div class="settings-category-icon" aria-hidden="true">♣</div>
+                  <div><h3>Tables</h3><p>Purchased table colors stay on your account. Apply any owned color to your card scene.</p></div>
+                </header>
+                <div class="settings-panel-body">
+                  <div id="table-theme-list" class="table-theme-list"></div>
+                  <p id="table-theme-status" class="table-theme-status" role="status" aria-live="polite"></p>
+                </div>
+              </section>
+            </div>
           </div>
         </section>
 
@@ -363,20 +351,45 @@
           <p class="eyebrow">Top 50 adventurers</p>
           <h2 id="leaderboard-title">Leaderboard</h2>
           <p id="leaderboard-status" class="screen-description" role="status" aria-live="polite"></p>
-          <div class="store-tabs leaderboard-tabs" role="tablist" aria-label="Leaderboard categories">
-            <button id="leaderboard-tab-experience" class="store-tab" type="button" role="tab" aria-selected="true" aria-controls="leaderboard-panel-experience">Total EXP</button>
-            <button id="leaderboard-tab-monsters" class="store-tab" type="button" role="tab" aria-selected="false" aria-controls="leaderboard-panel-monsters" tabindex="-1">Monsters</button>
-            <button id="leaderboard-tab-tower" class="store-tab" type="button" role="tab" aria-selected="false" aria-controls="leaderboard-panel-tower" tabindex="-1">Tower floor</button>
+          <div class="settings-layout">
+            <div class="settings-navigation" role="tablist" aria-orientation="vertical" aria-label="Leaderboard categories">
+              <button id="leaderboard-tab-experience" class="settings-navigation-item" type="button" role="tab" aria-selected="true" aria-controls="leaderboard-panel-experience">
+                <span class="settings-navigation-icon" aria-hidden="true">✦</span>
+                <span><strong>Total EXP</strong><small>Lifetime experience</small></span>
+              </button>
+              <button id="leaderboard-tab-monsters" class="settings-navigation-item" type="button" role="tab" aria-selected="false" aria-controls="leaderboard-panel-monsters" tabindex="-1">
+                <span class="settings-navigation-icon" aria-hidden="true">⚔</span>
+                <span><strong>Monsters</strong><small>Monsters defeated</small></span>
+              </button>
+              <button id="leaderboard-tab-tower" class="settings-navigation-item" type="button" role="tab" aria-selected="false" aria-controls="leaderboard-panel-tower" tabindex="-1">
+                <span class="settings-navigation-icon" aria-hidden="true">♜</span>
+                <span><strong>Tower floor</strong><small>Highest floor cleared</small></span>
+              </button>
+            </div>
+            <div class="settings-content">
+              <section id="leaderboard-panel-experience" role="tabpanel" aria-labelledby="leaderboard-tab-experience">
+                <header class="settings-category-heading">
+                  <div class="settings-category-icon" aria-hidden="true">✦</div>
+                  <div><h3>Total EXP</h3><p>Ranked by lifetime experience</p></div>
+                </header>
+                <div class="settings-panel-body"><ol id="experience-leaderboard-list" class="leaderboard-list"></ol></div>
+              </section>
+              <section id="leaderboard-panel-monsters" role="tabpanel" aria-labelledby="leaderboard-tab-monsters" hidden>
+                <header class="settings-category-heading">
+                  <div class="settings-category-icon" aria-hidden="true">⚔</div>
+                  <div><h3>Monsters</h3><p>Ranked by monsters defeated</p></div>
+                </header>
+                <div class="settings-panel-body"><ol id="monsters-leaderboard-list" class="leaderboard-list"></ol></div>
+              </section>
+              <section id="leaderboard-panel-tower" role="tabpanel" aria-labelledby="leaderboard-tab-tower" hidden>
+                <header class="settings-category-heading">
+                  <div class="settings-category-icon" aria-hidden="true">♜</div>
+                  <div><h3>Tower floor</h3><p>Ranked by highest Infinite Tower floor cleared</p></div>
+                </header>
+                <div class="settings-panel-body"><ol id="tower-leaderboard-list" class="leaderboard-list"></ol></div>
+              </section>
+            </div>
           </div>
-          <section id="leaderboard-panel-experience" role="tabpanel" aria-labelledby="leaderboard-tab-experience">
-            <ol id="experience-leaderboard-list" class="leaderboard-list"></ol>
-          </section>
-          <section id="leaderboard-panel-monsters" role="tabpanel" aria-labelledby="leaderboard-tab-monsters" hidden>
-            <ol id="monsters-leaderboard-list" class="leaderboard-list"></ol>
-          </section>
-          <section id="leaderboard-panel-tower" role="tabpanel" aria-labelledby="leaderboard-tab-tower" hidden>
-            <ol id="tower-leaderboard-list" class="leaderboard-list"></ol>
-          </section>
         </section>
 
         <section id="character-screen" class="screen-panel" aria-labelledby="character-title" hidden>

@@ -13,6 +13,7 @@ import { createDailyQuestController } from './ui/daily-quests.js';
 import { createGameSettings } from './ui/game-settings.js';
 import { createLeaderboardController } from './ui/leaderboard.js';
 import { createLootRenderer } from './ui/loot.js';
+import { createMainMenuController } from './ui/main-menu.js';
 import { createMultiplayerController } from './ui/multiplayer.js';
 import { createPaperDollCustomizer } from './ui/paper-doll-customizer.js';
 import { createScreenController } from './ui/screens.js';
@@ -37,12 +38,14 @@ const gameSettings = createGameSettings({
     game?.battlefield.destroy(true);
     game = null;
     multiplayer?.refreshFpsLimit();
+    mainMenu.refreshFpsLimit();
   },
   onShowHandCountChange: (showHandCount) => {
     game?.cards.scene.getScene('blackjack')?.setShowHandCount(showHandCount);
     multiplayer?.refreshShowHandCount(showHandCount);
   },
 });
+const mainMenu = createMainMenuController({ getFpsLimit: () => gameSettings.getFpsLimit() });
 
 let currentGame = null;
 let currentStats = {
@@ -936,6 +939,7 @@ multiplayer = createMultiplayerController({
 const screens = createScreenController({
   onQuitDungeon: quitDungeon,
   onShowLobby: () => dailyQuests.refresh(),
+  onShow: (name) => mainMenu.setActive(name === 'lobby'),
   onOpenLab: renderProgression,
   onOpenLeaderboard: leaderboard.open,
   onOpenMultiplayer: multiplayer.open,
@@ -998,6 +1002,7 @@ const auth = createAuthController({
     }
   },
   onSignedOut: () => {
+    mainMenu.setActive(false);
     currentGame = null;
     runState = null;
     game?.cards.destroy(true);

@@ -5,6 +5,7 @@ export function createScreenController({
   onOpenMultiplayer,
   onOpenDungeons,
   onShowLobby = () => {},
+  onShow = () => {},
   onStartTower,
   onOpenCharacter,
   onOpenStore,
@@ -39,8 +40,8 @@ export function createScreenController({
       tab.addEventListener('click', () => selectTab(tab));
       tab.addEventListener('keydown', (event) => {
         let nextIndex = null;
-        if (event.key === 'ArrowRight') nextIndex = (index + 1) % tabs.length;
-        if (event.key === 'ArrowLeft') nextIndex = (index - 1 + tabs.length) % tabs.length;
+        if (event.key === 'ArrowRight' || event.key === 'ArrowDown') nextIndex = (index + 1) % tabs.length;
+        if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') nextIndex = (index - 1 + tabs.length) % tabs.length;
         if (event.key === 'Home') nextIndex = 0;
         if (event.key === 'End') nextIndex = tabs.length - 1;
         if (nextIndex !== null) {
@@ -56,6 +57,7 @@ export function createScreenController({
       panel.hidden = screenName !== name;
     }
     gameActions.hidden = name !== 'dungeon';
+    onShow(name);
   }
 
   document.querySelector('#start-game-button').addEventListener('click', () => {
