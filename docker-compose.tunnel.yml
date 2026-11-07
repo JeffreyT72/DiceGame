@@ -5,9 +5,8 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
-      REDIS_URL: redis://redis:6379
-    depends_on:
-      - redis
+      # Redis leaderboard cache disabled for now; without REDIS_URL the leaderboard reads SQLite.
+      # To re-enable: set REDIS_URL: redis://redis:6379, add depends_on: [redis], uncomment the service below.
     volumes:
       - ./data:/app/data
     networks:
@@ -17,9 +16,9 @@ services:
           - blackjack
 
   # Leaderboard cache only; safe to lose, so no volume. Not on the tunnel network.
-  redis:
-    image: redis:7-alpine
-    restart: unless-stopped
+  # redis:
+  #   image: redis:7-alpine
+  #   restart: unless-stopped
 
 networks:
   tunnel:

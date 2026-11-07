@@ -65,7 +65,7 @@ Set `DATABASE_PATH` or `PLAYER_DATABASE_PATH` to change the database file locati
 
 ## Deployment
 
-The Docker image builds the frontend and runs the production server on port `3000`. [`docker-compose.tunnel.yml`](./docker-compose.tunnel.yml) mounts `./data` for persistence and attaches the service to the `blackjack-tunnel` network. It also runs a Redis container for the leaderboard cache on the compose project's default network, which the tunnel network cannot reach.
+The Docker image builds the frontend and runs the production server on port `3000`. [`docker-compose.tunnel.yml`](./docker-compose.tunnel.yml) mounts `./data` for persistence and attaches the service to the `blackjack-tunnel` network. The Redis leaderboard cache is currently disabled there (no `REDIS_URL`, Redis service commented out), so the leaderboard reads SQLite; uncomment it to run Redis on the compose project's default network, which the tunnel network cannot reach.
 
 In production, the server redirects HTTP requests to HTTPS. When TLS terminates at a reverse proxy or tunnel, configure it to overwrite and forward `X-Forwarded-Proto: https`, and forward WebSocket upgrade requests to the app. The proxy and app must use the same host for browser-origin checks.
 
