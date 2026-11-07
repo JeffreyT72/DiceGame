@@ -374,6 +374,8 @@ export function createMainMenuGame(parent, { portrait, fpsLimit }) {
       // Top-anchored so spare height falls below the menu, not between it and the header.
       autoCenter: Phaser.Scale.CENTER_HORIZONTALLY,
     },
+    // Canvas events only: Phaser's window listeners would fire these cards from other screens and dialogs.
+    input: { windowEvents: false },
     render: {
       antialias: true,
     },
