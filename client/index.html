@@ -109,7 +109,7 @@
               <span class="lobby-option-kicker">Spend your gold</span><strong>Adventurer store</strong><span>Find titles, avatars, and frames.</span>
             </button>
             <button id="leaderboard-button" class="lobby-option" type="button">
-              <span class="lobby-option-kicker">Hall of legends</span><strong>Leaderboard</strong><span>See who has earned the most EXP.</span>
+              <span class="lobby-option-kicker">Hall of legends</span><strong>Leaderboard</strong><span>Top EXP, monster hunters and tower climbers.</span>
             </button>
             <button id="tower-button" class="lobby-option" type="button">
               <span class="lobby-option-kicker">Endless climb</span><strong>Infinite Tower</strong><span>Survive the floors. Face a boss every ten levels.</span>
@@ -363,16 +363,20 @@
           <p class="eyebrow">Top 50 adventurers</p>
           <h2 id="leaderboard-title">Leaderboard</h2>
           <p id="leaderboard-status" class="screen-description" role="status" aria-live="polite"></p>
-          <div class="leaderboard-columns">
-            <section class="leaderboard-category" aria-labelledby="experience-leaderboard-title">
-              <h3 id="experience-leaderboard-title">Total EXP</h3>
-              <ol id="experience-leaderboard-list" class="leaderboard-list"></ol>
-            </section>
-            <section class="leaderboard-category" aria-labelledby="monsters-leaderboard-title">
-              <h3 id="monsters-leaderboard-title">Monsters defeated</h3>
-              <ol id="monsters-leaderboard-list" class="leaderboard-list"></ol>
-            </section>
+          <div class="store-tabs leaderboard-tabs" role="tablist" aria-label="Leaderboard categories">
+            <button id="leaderboard-tab-experience" class="store-tab" type="button" role="tab" aria-selected="true" aria-controls="leaderboard-panel-experience">Total EXP</button>
+            <button id="leaderboard-tab-monsters" class="store-tab" type="button" role="tab" aria-selected="false" aria-controls="leaderboard-panel-monsters" tabindex="-1">Monsters</button>
+            <button id="leaderboard-tab-tower" class="store-tab" type="button" role="tab" aria-selected="false" aria-controls="leaderboard-panel-tower" tabindex="-1">Tower floor</button>
           </div>
+          <section id="leaderboard-panel-experience" role="tabpanel" aria-labelledby="leaderboard-tab-experience">
+            <ol id="experience-leaderboard-list" class="leaderboard-list"></ol>
+          </section>
+          <section id="leaderboard-panel-monsters" role="tabpanel" aria-labelledby="leaderboard-tab-monsters" hidden>
+            <ol id="monsters-leaderboard-list" class="leaderboard-list"></ol>
+          </section>
+          <section id="leaderboard-panel-tower" role="tabpanel" aria-labelledby="leaderboard-tab-tower" hidden>
+            <ol id="tower-leaderboard-list" class="leaderboard-list"></ol>
+          </section>
         </section>
 
         <section id="character-screen" class="screen-panel" aria-labelledby="character-title" hidden>

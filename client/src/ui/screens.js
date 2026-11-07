@@ -22,35 +22,34 @@ export function createScreenController({
     placeholder: document.querySelector('#placeholder-screen'),
   };
   const gameActions = document.querySelector('#game-actions');
-  const storeTabs = [...document.querySelectorAll('.store-tab')];
-  const storePanels = [...document.querySelectorAll('.store-panel')];
 
-  function selectStoreTab(selectedTab, focus = false) {
-    for (const tab of storeTabs) {
-      const selected = tab === selectedTab;
-      tab.setAttribute('aria-selected', String(selected));
-      tab.tabIndex = selected ? 0 : -1;
-    }
-    for (const panel of storePanels) {
-      panel.hidden = panel.getAttribute('aria-labelledby') !== selectedTab.id;
-    }
-    if (focus) selectedTab.focus();
-  }
-
-  storeTabs.forEach((tab, index) => {
-    tab.addEventListener('click', () => selectStoreTab(tab));
-    tab.addEventListener('keydown', (event) => {
-      let nextIndex = null;
-      if (event.key === 'ArrowRight') nextIndex = (index + 1) % storeTabs.length;
-      if (event.key === 'ArrowLeft') nextIndex = (index - 1 + storeTabs.length) % storeTabs.length;
-      if (event.key === 'Home') nextIndex = 0;
-      if (event.key === 'End') nextIndex = storeTabs.length - 1;
-      if (nextIndex !== null) {
-        event.preventDefault();
-        selectStoreTab(storeTabs[nextIndex], true);
+  for (const tablist of document.querySelectorAll('[role="tablist"]')) {
+    const tabs = [...tablist.querySelectorAll('[role="tab"]')];
+    const selectTab = (selectedTab, focus = false) => {
+      for (const tab of tabs) {
+        const selected = tab === selectedTab;
+        tab.setAttribute('aria-selected', String(selected));
+        tab.tabIndex = selected ? 0 : -1;
+        document.getElementById(tab.getAttribute('aria-controls')).hidden = !selected;
       }
+      if (focus) selectedTab.focus();
+    };
+
+    tabs.forEach((tab, index) => {
+      tab.addEventListener('click', () => selectTab(tab));
+      tab.addEventListener('keydown', (event) => {
+        let nextIndex = null;
+        if (event.key === 'ArrowRight') nextIndex = (index + 1) % tabs.length;
+        if (event.key === 'ArrowLeft') nextIndex = (index - 1 + tabs.length) % tabs.length;
+        if (event.key === 'Home') nextIndex = 0;
+        if (event.key === 'End') nextIndex = tabs.length - 1;
+        if (nextIndex !== null) {
+          event.preventDefault();
+          selectTab(tabs[nextIndex], true);
+        }
+      });
     });
-  });
+  }
 
   function show(name) {
     for (const [screenName, panel] of Object.entries(screens)) {

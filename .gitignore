@@ -149,3 +149,9 @@ vite.config.ts.timestamp-*
 
 # Turbo Repo
 .turbo
+
+# Local AI tooling (not app code)
+ponytail/
+.claude/settings.local.json
+.claude/skills/
+.github/prompts/

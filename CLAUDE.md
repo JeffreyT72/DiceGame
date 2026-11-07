@@ -40,4 +40,4 @@ Client = Vite + Phaser 3 + vanilla DOM; server = Express 5 + better-sqlite3 + ws
 - This website served as a game. Focus on vistual, UI/UX, animation.
 - Never edit, delete, or replace `data/*.sqlite*`. They hold real player accounts. Never commit DB files or secrets.
 - Update README.md when setup, gameplay, config, or deploy behavior changes.
-- `.github/prompts/`, `.github/skills/`, `ponytail/` and `.codegraph/` are AI-tooling, not app code; skip them when searching.
+- `.github/prompts/`, `.github/skills/`, `.claude/skills/`, `ponytail/` and `.codegraph/` are AI-tooling, not app code; skip them when searching.

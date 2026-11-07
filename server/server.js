@@ -89,6 +89,7 @@ playerDatabase.exec(`
     losses INTEGER NOT NULL DEFAULT 0 CHECK (losses >= 0),
     pushes INTEGER NOT NULL DEFAULT 0 CHECK (pushes >= 0),
     monsters_defeated INTEGER NOT NULL DEFAULT 0 CHECK (monsters_defeated >= 0),
+    highest_tower_floor INTEGER NOT NULL DEFAULT 0 CHECK (highest_tower_floor >= 0),
     character_name TEXT NOT NULL DEFAULT '',
     character TEXT NOT NULL DEFAULT 'chibi',
     top TEXT NOT NULL DEFAULT '${defaultPaperDollTop}',
@@ -211,7 +212,7 @@ if (
 const existingPlayerStatColumns = new Set(
   playerDatabase.prepare('PRAGMA table_info(player_stats)').all().map(({ name }) => name),
 );
-for (const column of ['strength', 'agility', 'constitution', 'luck', 'currency']) {
+for (const column of ['strength', 'agility', 'constitution', 'luck', 'currency', 'highest_tower_floor']) {
   if (!existingPlayerStatColumns.has(column)) {
     playerDatabase.exec(`ALTER TABLE player_stats ADD COLUMN ${column} INTEGER NOT NULL DEFAULT 0 CHECK (${column} >= 0)`);
   }
@@ -1049,9 +1050,10 @@ app.post('/api/tower-runs/:id/clear-floor', requirePlayer, (request, response) =
       SET total_exp = total_exp + ?,
         currency = currency + ?,
         monsters_defeated = monsters_defeated + 1,
+        highest_tower_floor = MAX(highest_tower_floor, ?),
         updated_at = datetime('now')
       WHERE user_id = ?
-    `).run(expAwarded, encounter.boss ? currencyRewardPerDungeon : 0, request.playerId);
+    `).run(expAwarded, encounter.boss ? currencyRewardPerDungeon : 0, floor, request.playerId);
     return playerStats(request.playerId);
   });
   const result = {

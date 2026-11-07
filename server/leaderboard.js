@@ -4,18 +4,19 @@ const topKey = 'leaderboard:top';
 const ranksKey = 'leaderboard:ranks';
 
 export function createLeaderboard(database, redis = null) {
-  const boardQuery = (column, field) => database.prepare(`
+  const boardQuery = (column, field, minimum = 0) => database.prepare(`
     SELECT users.id AS userId,
       COALESCE(NULLIF(player_stats.character_name, ''), users.username) AS username,
       COALESCE(player_stats.${column}, 0) AS ${field}
     FROM users
     LEFT JOIN player_stats ON player_stats.user_id = users.id
-    WHERE users.active = 1
+    WHERE users.active = 1 AND COALESCE(player_stats.${column}, 0) >= ${minimum}
     ORDER BY ${field} DESC, username COLLATE NOCASE ASC
   `);
   const boards = {
     experience: boardQuery('total_exp', 'totalExp'),
     monstersDefeated: boardQuery('monsters_defeated', 'monstersDefeated'),
+    towerFloor: boardQuery('highest_tower_floor', 'highestTowerFloor', 1),
   };
 
   function snapshot() {

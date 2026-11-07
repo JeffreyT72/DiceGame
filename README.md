@@ -8,7 +8,7 @@ Blackjack Survivors is a browser-based dungeon game where blackjack hands decide
 - Infinite Tower solo runs with a ten-floor climb, recurring bosses, and escalating monster stats.
 - Blackjack combat actions including hit, stand, double down, split, wagers, and character-stat bonuses.
 - Multiplayer rooms for up to four signed-in players, with shared encounters and turn-based rounds.
-- Character and table customization, a store, and leaderboards showing the top 50 players plus your own rank, refreshed about once a minute.
+- Character and table customization, a store, and tabbed leaderboards (Total EXP by default, Monsters defeated, Highest tower floor) showing the top 50 players plus your own rank, refreshed about once a minute.
 - Five daily quests are randomly selected from ten possible blackjack, betting, double-down, dealer-bust, split, monster, boss, and dungeon-clear goals. Each completed quest can be claimed for 100 gold; quests reset at midnight UTC.
 
 ## Requirements
@@ -52,7 +52,7 @@ The Character screen includes generated tunic colors for the Chibi paper-doll mo
 
 Multiplayer rooms support two to four signed-in players. The host starts the dungeon, the party shares monster health and each blackjack round's dealer hand, and players take turns. Room membership and active progress are held in server memory and are lost if the server restarts. WebSocket connections use the signed-in session and require a same-host browser origin.
 
-Infinite Tower reuses the dungeon monster roster and battle scene. A boss appears every tenth floor; monster health, attack, and defense increase by 20% each ten-floor block. The ten-floor progress track resets after each boss while the overall floor count continues. Tower progress is temporary and is not saved for resuming; cleared floors award EXP and loot, with each floor's EXP capped at five times the EXP required for the player's next level.
+Infinite Tower reuses the dungeon monster roster and battle scene. A boss appears every tenth floor; monster health, attack, and defense increase by 20% each ten-floor block. The ten-floor progress track resets after each boss while the overall floor count continues. Tower progress is temporary and is not saved for resuming, but each player's highest cleared floor is recorded for the tower leaderboard; cleared floors award EXP and loot, with each floor's EXP capped at five times the EXP required for the player's next level.
 
 ## Accounts and data
 

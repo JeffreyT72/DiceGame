@@ -11,7 +11,8 @@ function createDatabase() {
       user_id TEXT PRIMARY KEY,
       character_name TEXT NOT NULL DEFAULT '',
       total_exp INTEGER NOT NULL DEFAULT 0,
-      monsters_defeated INTEGER NOT NULL DEFAULT 0
+      monsters_defeated INTEGER NOT NULL DEFAULT 0,
+      highest_tower_floor INTEGER NOT NULL DEFAULT 0
     );
   `);
   const addUser = database.prepare('INSERT INTO users (id, username) VALUES (?, ?)');
@@ -28,7 +29,12 @@ function createDatabase() {
   addStats.run('p00', 0, 999);
   addUser.run('gone', 'gone');
   database.prepare('UPDATE users SET active = 0 WHERE id = ?').run('gone');
-  database.prepare('INSERT INTO player_stats (user_id, total_exp) VALUES (?, ?)').run('gone', 99999);
+  database.prepare('INSERT INTO player_stats (user_id, total_exp, highest_tower_floor) VALUES (?, ?, ?)')
+    .run('gone', 99999, 999);
+  const setFloor = database.prepare('UPDATE player_stats SET highest_tower_floor = ? WHERE user_id = ?');
+  setFloor.run(12, 'p30');
+  setFloor.run(40, 'p05');
+  setFloor.run(12, 'p20');
   return database;
 }
 
@@ -65,6 +71,20 @@ test('leaderboard returns the top 50 and the player rank outside it', async () =
     monstersDefeated: { rank: 1, username: 'p00', monstersDefeated: 999 },
   });
   assert.ok(updatedAt);
+});
+
+test('tower leaderboard ranks only players who cleared a floor', async () => {
+  const leaderboard = createLeaderboard(createDatabase());
+  const { towerFloor, me } = await leaderboard.get('p20');
+
+  // Inactive 'gone' is excluded; the 12-floor tie is broken by name.
+  assert.deepEqual(towerFloor, [
+    { username: 'p05', highestTowerFloor: 40 },
+    { username: 'p20', highestTowerFloor: 12 },
+    { username: 'p30', highestTowerFloor: 12 },
+  ]);
+  assert.deepEqual(me.towerFloor, { rank: 2, username: 'p20', highestTowerFloor: 12 });
+  assert.equal((await leaderboard.get('p00')).me.towerFloor, undefined);
 });
 
 test('leaderboard serves cached data until Redis is unavailable', async () => {

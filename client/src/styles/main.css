@@ -1341,56 +1341,83 @@ h1 {
   font-size: 0.65rem;
 }
 
-.leaderboard-columns {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-}
-
-.leaderboard-category {
-  min-width: 0;
-}
-
-.leaderboard-category h3 {
-  margin: 0 0 10px;
-  color: var(--color-accent);
-  font-size: 1rem;
+.store-tabs.leaderboard-tabs {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .leaderboard-list {
   display: grid;
   gap: 8px;
   margin: 0;
-  padding-left: 2.5rem;
+  padding: 0;
+  list-style: none;
 }
 
 .leaderboard-list li {
-  padding: 14px 16px;
+  --rank-color: var(--color-border-strong);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px 10px 10px;
   border: 1px solid var(--color-border);
   border-radius: 10px;
   background: var(--color-surface);
-  color: var(--color-accent);
+  animation: leaderboard-rise 320ms ease-out both;
+  animation-delay: calc(min(var(--i, 0), 12) * 30ms);
 }
 
-.leaderboard-list li::marker {
+.leaderboard-rank {
+  display: grid;
+  place-items: center;
+  min-width: 2.25rem;
+  height: 2.25rem;
+  padding: 0 8px;
+  border: 1px solid var(--rank-color);
+  border-radius: 999px;
+  background: var(--color-surface-deep);
   color: var(--color-text-muted);
-  font-weight: 700;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
 }
 
 .leaderboard-list li strong {
+  overflow: hidden;
   color: var(--color-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.leaderboard-list li span {
-  float: right;
+.leaderboard-score {
   color: var(--color-accent);
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.leaderboard-list li[data-rank="1"] { --rank-color: #f0d778; }
+.leaderboard-list li[data-rank="2"] { --rank-color: #c9ccd6; }
+.leaderboard-list li[data-rank="3"] { --rank-color: #c98a5a; }
+
+.leaderboard-list li:is([data-rank="1"], [data-rank="2"], [data-rank="3"]) {
+  border-color: color-mix(in srgb, var(--rank-color) 55%, var(--color-border));
+}
+
+.leaderboard-list li:is([data-rank="1"], [data-rank="2"], [data-rank="3"]) .leaderboard-rank {
+  background: linear-gradient(145deg, color-mix(in srgb, var(--rank-color) 70%, white), var(--rank-color) 55%, color-mix(in srgb, var(--rank-color) 60%, black));
+  color: #22171f;
+  font-size: 1.05rem;
+}
+
+.leaderboard-list li[data-rank="1"] .leaderboard-rank {
+  box-shadow: 0 0 14px color-mix(in srgb, var(--rank-color) 55%, transparent);
 }
 
 .leaderboard-list .leaderboard-empty {
+  display: block;
+  padding: 14px 16px;
   color: var(--color-text-muted);
   font-style: italic;
-  list-style: none;
 }
 
 .leaderboard-list li.leaderboard-self {
@@ -1400,7 +1427,19 @@ h1 {
 
 /* Only the player's own row below the top 50 carries an explicit value. */
 .leaderboard-list li.leaderboard-self[value] {
+  --rank-color: var(--color-accent-bright);
   margin-top: 12px;
+}
+
+.leaderboard-list li.leaderboard-self[value] .leaderboard-rank {
+  color: var(--color-accent-bright);
+}
+
+@keyframes leaderboard-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
 }
 
 .screen-back {
@@ -2413,10 +2452,6 @@ h1 {
     min-height: 205px;
   }
 
-  .leaderboard-columns {
-    grid-template-columns: 1fr;
-  }
-
   .loot-choices {
     grid-template-columns: 1fr;
   }
@@ -2437,6 +2472,9 @@ h1 {
 @media (prefers-reduced-motion: reduce) {
   .daily-quests-dialog[open] {
     animation-duration: 1ms;
+  }
+  .leaderboard-list li {
+    animation: none;
   }
   .lobby-cta,
   .lobby-option {
